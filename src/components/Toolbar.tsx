@@ -247,6 +247,9 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
 
         log.info('任务已提交, task_ids:', taskIds);
 
+        // 任务已成功提交，取消"启动中"状态
+        setIsStarting(false);
+
         // 等待所有任务完成
         for (let i = 0; i < taskIds.length; i++) {
           const taskId = taskIds[i];
