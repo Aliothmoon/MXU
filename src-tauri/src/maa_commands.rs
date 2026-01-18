@@ -4,12 +4,20 @@
 
 use std::collections::HashMap;
 use std::path::PathBuf;
+use std::process::{Child, Command};
 use std::sync::Mutex;
 
 use serde::{Deserialize, Serialize};
 use tauri::State;
 
-use crate::maa_ffi::*;
+use crate::maa_ffi::{
+    from_cstr, get_maa_version, init_maa_library, to_cstring, MaaAgentClient, MaaController,
+    MaaImageBuffer, MaaLibrary, MaaResource, MaaTasker, MaaToolkitAdbDeviceList,
+    MaaToolkitDesktopWindowList, MAA_CTRL_OPTION_SCREENSHOT_TARGET_SHORT_SIDE,
+    MAA_GAMEPAD_TYPE_DUALSHOCK4, MAA_GAMEPAD_TYPE_XBOX360, MAA_INVALID_ID, MAA_LIBRARY,
+    MAA_STATUS_PENDING, MAA_STATUS_RUNNING, MAA_STATUS_SUCCEEDED,
+    MAA_WIN32_SCREENCAP_DXGI_DESKTOPDUP,
+};
 
 // ============================================================================
 // 数据类型定义
@@ -104,11 +112,12 @@ pub enum TaskStatus {
 }
 
 /// 实例运行时状态
-#[derive(Debug)]
 pub struct InstanceRuntime {
     pub resource: Option<*mut MaaResource>,
     pub controller: Option<*mut MaaController>,
     pub tasker: Option<*mut MaaTasker>,
+    pub agent_client: Option<*mut MaaAgentClient>,
+    pub agent_child: Option<Child>,
     pub connection_status: ConnectionStatus,
     pub resource_loaded: bool,
 }
@@ -124,6 +133,8 @@ impl Default for InstanceRuntime {
             resource: None,
             controller: None,
             tasker: None,
+            agent_client: None,
+            agent_child: None,
             connection_status: ConnectionStatus::Disconnected,
             resource_loaded: false,
         }
@@ -135,6 +146,15 @@ impl Drop for InstanceRuntime {
         if let Ok(guard) = MAA_LIBRARY.lock() {
             if let Some(lib) = guard.as_ref() {
                 unsafe {
+                    // 断开并销毁 agent
+                    if let Some(agent) = self.agent_client.take() {
+                        (lib.maa_agent_client_disconnect)(agent);
+                        (lib.maa_agent_client_destroy)(agent);
+                    }
+                    // 终止 agent 子进程
+                    if let Some(mut child) = self.agent_child.take() {
+                        let _ = child.kill();
+                    }
                     if let Some(tasker) = self.tasker.take() {
                         (lib.maa_tasker_destroy)(tasker);
                     }
@@ -196,21 +216,29 @@ fn get_maafw_dir() -> Result<PathBuf, String> {
 /// 如果提供 lib_dir 则使用该路径，否则自动从 exe 目录/maafw 加载
 #[tauri::command]
 pub fn maa_init(state: State<MaaState>, lib_dir: Option<String>) -> Result<String, String> {
+    println!("[MaaCommands] maa_init called, lib_dir: {:?}", lib_dir);
+    
     let lib_path = match lib_dir {
         Some(dir) if !dir.is_empty() => PathBuf::from(&dir),
         _ => get_maafw_dir()?,
     };
     
+    println!("[MaaCommands] maa_init using path: {:?}", lib_path);
+    
     if !lib_path.exists() {
-        return Err(format!(
+        let err = format!(
             "MaaFramework library directory not found: {}",
             lib_path.display()
-        ));
+        );
+        println!("[MaaCommands] {}", err);
+        return Err(err);
     }
     
+    println!("[MaaCommands] maa_init loading library...");
     init_maa_library(&lib_path)?;
     
     let version = get_maa_version().unwrap_or_default();
+    println!("[MaaCommands] maa_init success, version: {}", version);
     
     *state.lib_dir.lock().map_err(|e| e.to_string())? = Some(lib_path);
     
@@ -868,4 +896,248 @@ pub fn maa_get_cached_image(state: State<MaaState>, instance_id: String) -> Resu
         // 返回带 data URL 前缀的 base64 字符串
         Ok(format!("data:image/png;base64,{}", base64_str))
     }
+}
+
+/// Agent 配置
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AgentConfig {
+    pub child_exec: String,
+    pub child_args: Option<Vec<String>>,
+    pub identifier: Option<String>,
+}
+
+/// 任务配置
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TaskConfig {
+    pub entry: String,
+    pub pipeline_override: String,
+}
+
+/// 启动任务（支持 Agent）
+#[tauri::command]
+pub async fn maa_start_tasks(
+    state: State<'_, MaaState>,
+    instance_id: String,
+    tasks: Vec<TaskConfig>,
+    agent_config: Option<AgentConfig>,
+    cwd: String,
+) -> Result<Vec<i64>, String> {
+    println!("[MaaCommands] maa_start_tasks called");
+    println!("[MaaCommands] instance_id: {}, tasks: {}, cwd: {}", instance_id, tasks.len(), cwd);
+    
+    let guard = MAA_LIBRARY.lock().map_err(|e| e.to_string())?;
+    let lib = guard.as_ref().ok_or("MaaFramework not initialized")?;
+    
+    // 获取实例资源和控制器
+    let (resource, _controller, tasker) = {
+        let mut instances = state.instances.lock().map_err(|e| e.to_string())?;
+        let instance = instances.get_mut(&instance_id).ok_or("Instance not found")?;
+        
+        let resource = instance.resource.ok_or("Resource not loaded")?;
+        let controller = instance.controller.ok_or("Controller not connected")?;
+        
+        // 创建或获取 tasker
+        if instance.tasker.is_none() {
+            let tasker = unsafe { (lib.maa_tasker_create)() };
+            if tasker.is_null() {
+                return Err("Failed to create tasker".to_string());
+            }
+            
+            // 绑定资源和控制器
+            unsafe {
+                (lib.maa_tasker_bind_resource)(tasker, resource);
+                (lib.maa_tasker_bind_controller)(tasker, controller);
+            }
+            
+            instance.tasker = Some(tasker);
+        }
+        
+        (resource, controller, instance.tasker.unwrap())
+    };
+    
+    // 启动 Agent（如果配置了）
+    if let Some(agent) = &agent_config {
+        println!("[MaaCommands] Starting agent: {:?}", agent);
+        
+        // 创建 AgentClient
+        let agent_client = unsafe { (lib.maa_agent_client_create_v2)(std::ptr::null()) };
+        if agent_client.is_null() {
+            return Err("Failed to create agent client".to_string());
+        }
+        
+        // 绑定资源
+        unsafe {
+            (lib.maa_agent_client_bind_resource)(agent_client, resource);
+        }
+        
+        // 获取 socket identifier
+        let socket_id = unsafe {
+            let id_buffer = (lib.maa_string_buffer_create)();
+            if id_buffer.is_null() {
+                (lib.maa_agent_client_destroy)(agent_client);
+                return Err("Failed to create string buffer".to_string());
+            }
+            
+            let success = (lib.maa_agent_client_identifier)(agent_client, id_buffer);
+            if success == 0 {
+                (lib.maa_string_buffer_destroy)(id_buffer);
+                (lib.maa_agent_client_destroy)(agent_client);
+                return Err("Failed to get agent identifier".to_string());
+            }
+            
+            let id = from_cstr((lib.maa_string_buffer_get)(id_buffer));
+            (lib.maa_string_buffer_destroy)(id_buffer);
+            id
+        };
+        
+        println!("[MaaCommands] Agent socket_id: {}", socket_id);
+        
+        // 构建子进程参数
+        let mut args = agent.child_args.clone().unwrap_or_default();
+        args.push(socket_id);
+        
+        println!("[MaaCommands] Starting child process: {} {:?} in {}", agent.child_exec, args, cwd);
+        
+        // 启动子进程
+        let child = Command::new(&agent.child_exec)
+            .args(&args)
+            .current_dir(&cwd)
+            .spawn()
+            .map_err(|e| format!("Failed to start agent process: {}", e))?;
+        
+        println!("[MaaCommands] Agent child process started, pid: {:?}", child.id());
+        
+        // 等待连接
+        let connected = unsafe { (lib.maa_agent_client_connect)(agent_client) };
+        if connected == 0 {
+            let mut instances = state.instances.lock().map_err(|e| e.to_string())?;
+            if let Some(instance) = instances.get_mut(&instance_id) {
+                instance.agent_child = Some(child);
+            }
+            unsafe { (lib.maa_agent_client_destroy)(agent_client); }
+            return Err("Failed to connect to agent".to_string());
+        }
+        
+        println!("[MaaCommands] Agent connected");
+        
+        // 保存 agent 状态
+        {
+            let mut instances = state.instances.lock().map_err(|e| e.to_string())?;
+            if let Some(instance) = instances.get_mut(&instance_id) {
+                instance.agent_client = Some(agent_client);
+                instance.agent_child = Some(child);
+            }
+        }
+    }
+    
+    // 检查初始化状态
+    let inited = unsafe { (lib.maa_tasker_inited)(tasker) };
+    if inited == 0 {
+        return Err("Tasker not properly initialized".to_string());
+    }
+    
+    // 提交所有任务
+    let mut task_ids = Vec::new();
+    for task in &tasks {
+        let entry_c = to_cstring(&task.entry);
+        let override_c = to_cstring(&task.pipeline_override);
+        
+        let task_id = unsafe {
+            (lib.maa_tasker_post_task)(tasker, entry_c.as_ptr(), override_c.as_ptr())
+        };
+        
+        if task_id == MAA_INVALID_ID {
+            println!("[MaaCommands] Failed to post task: {}", task.entry);
+            continue;
+        }
+        
+        println!("[MaaCommands] Posted task: {} -> id: {}", task.entry, task_id);
+        task_ids.push(task_id);
+    }
+    
+    Ok(task_ids)
+}
+
+/// 停止 Agent 并断开连接
+#[tauri::command]
+pub fn maa_stop_agent(state: State<MaaState>, instance_id: String) -> Result<(), String> {
+    println!("[MaaCommands] maa_stop_agent called for instance: {}", instance_id);
+    
+    let guard = MAA_LIBRARY.lock().map_err(|e| e.to_string())?;
+    let lib = guard.as_ref().ok_or("MaaFramework not initialized")?;
+    
+    let mut instances = state.instances.lock().map_err(|e| e.to_string())?;
+    let instance = instances.get_mut(&instance_id).ok_or("Instance not found")?;
+    
+    // 断开并销毁 agent
+    if let Some(agent) = instance.agent_client.take() {
+        println!("[MaaCommands] Disconnecting agent...");
+        unsafe {
+            (lib.maa_agent_client_disconnect)(agent);
+            (lib.maa_agent_client_destroy)(agent);
+        }
+    }
+    
+    // 终止子进程
+    if let Some(mut child) = instance.agent_child.take() {
+        println!("[MaaCommands] Killing agent child process...");
+        let _ = child.kill();
+        let _ = child.wait();
+    }
+    
+    Ok(())
+}
+
+// ============================================================================
+// 文件读取
+// ============================================================================
+
+/// 获取 exe 所在目录路径
+fn get_exe_directory() -> Result<PathBuf, String> {
+    let exe_path = std::env::current_exe().map_err(|e| format!("获取 exe 路径失败: {}", e))?;
+    exe_path
+        .parent()
+        .map(|p| p.to_path_buf())
+        .ok_or_else(|| "无法获取 exe 所在目录".to_string())
+}
+
+/// 读取 exe 同目录下的文本文件
+#[tauri::command]
+pub fn read_local_file(filename: String) -> Result<String, String> {
+    let exe_dir = get_exe_directory()?;
+    let file_path = exe_dir.join(&filename);
+    println!("[MaaCommands] Reading local file: {:?}", file_path);
+    
+    std::fs::read_to_string(&file_path)
+        .map_err(|e| format!("读取文件失败 [{}]: {}", file_path.display(), e))
+}
+
+/// 读取 exe 同目录下的二进制文件，返回 base64 编码
+#[tauri::command]
+pub fn read_local_file_base64(filename: String) -> Result<String, String> {
+    use base64::{Engine as _, engine::general_purpose::STANDARD};
+    
+    let exe_dir = get_exe_directory()?;
+    let file_path = exe_dir.join(&filename);
+    println!("[MaaCommands] Reading local file (base64): {:?}", file_path);
+    
+    let data = std::fs::read(&file_path)
+        .map_err(|e| format!("读取文件失败 [{}]: {}", file_path.display(), e))?;
+    
+    Ok(STANDARD.encode(&data))
+}
+
+/// 检查 exe 同目录下的文件是否存在
+#[tauri::command]
+pub fn local_file_exists(filename: String) -> Result<bool, String> {
+    let exe_dir = get_exe_directory()?;
+    let file_path = exe_dir.join(&filename);
+    Ok(file_path.exists())
+}
+
+/// 获取 exe 所在目录路径
+#[tauri::command]
+pub fn get_exe_dir() -> Result<String, String> {
+    let exe_dir = get_exe_directory()?;
+    Ok(exe_dir.to_string_lossy().to_string())
 }

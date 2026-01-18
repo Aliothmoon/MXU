@@ -8,6 +8,8 @@ import type {
   ControllerConfig,
   ConnectionStatus,
   TaskStatus,
+  AgentConfig,
+  TaskConfig,
 } from '@/types/maa';
 import { loggers } from '@/utils/logger';
 
@@ -251,6 +253,42 @@ export const maaService = {
   async getCachedImage(instanceId: string): Promise<string> {
     if (!isTauri()) return '';
     return await invoke<string>('maa_get_cached_image', { instanceId });
+  },
+
+  /**
+   * 启动任务（支持 Agent）
+   * @param instanceId 实例 ID
+   * @param tasks 任务列表
+   * @param agentConfig Agent 配置（可选）
+   * @param cwd 工作目录（Agent 子进程的 CWD）
+   * @returns 任务 ID 列表
+   */
+  async startTasks(
+    instanceId: string,
+    tasks: TaskConfig[],
+    agentConfig?: AgentConfig,
+    cwd?: string
+  ): Promise<number[]> {
+    log.info('启动任务, 实例:', instanceId, '任务数:', tasks.length);
+    if (!isTauri()) {
+      return tasks.map((_, i) => i + 1);
+    }
+    return await invoke<number[]>('maa_start_tasks', {
+      instanceId,
+      tasks,
+      agentConfig: agentConfig || null,
+      cwd: cwd || '.',
+    });
+  },
+
+  /**
+   * 停止 Agent 并断开连接
+   * @param instanceId 实例 ID
+   */
+  async stopAgent(instanceId: string): Promise<void> {
+    log.info('停止 Agent, 实例:', instanceId);
+    if (!isTauri()) return;
+    return await invoke('maa_stop_agent', { instanceId });
   },
 };
 

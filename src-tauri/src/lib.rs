@@ -31,6 +31,12 @@ pub fn run() {
             maa_commands::maa_post_screencap,
             maa_commands::maa_screencap_wait,
             maa_commands::maa_get_cached_image,
+            maa_commands::maa_start_tasks,
+            maa_commands::maa_stop_agent,
+            maa_commands::read_local_file,
+            maa_commands::read_local_file_base64,
+            maa_commands::local_file_exists,
+            maa_commands::get_exe_dir,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -16,7 +16,9 @@
         "label": "main",
         "title": "mxu",
         "width": 1000,
-        "height": 618
+        "height": 618,
+        "minWidth": 800,
+        "minHeight": 500
       }
     ],
     "security": {

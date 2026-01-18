@@ -1,3 +1,4 @@
+import { invoke } from '@tauri-apps/api/core';
 import type { ProjectInterface } from '@/types/interface';
 import { loggers } from '@/utils/logger';
 
@@ -7,8 +8,76 @@ export interface LoadResult {
   interface: ProjectInterface;
   translations: Record<string, Record<string, string>>;
   basePath: string;
-  isDebugMode: boolean;
 }
+
+const isTauri = () => {
+  return typeof window !== 'undefined' && '__TAURI__' in window;
+};
+
+// ============================================================================
+// Tauri 环境：通过 Rust 读取本地文件
+// ============================================================================
+
+/**
+ * 通过 Tauri 命令读取本地文件
+ * @param filename 相对于 exe 目录的文件路径
+ */
+async function readLocalFile(filename: string): Promise<string> {
+  return await invoke<string>('read_local_file', { filename });
+}
+
+/**
+ * 拼接路径（处理空 basePath 的情况）
+ */
+function joinPath(basePath: string, relativePath: string): string {
+  if (!basePath) return relativePath;
+  return `${basePath}/${relativePath}`;
+}
+
+/**
+ * 从本地文件加载 interface.json（Tauri 环境）
+ * @param interfacePath interface.json 的路径（相对于 exe 目录）
+ */
+async function loadInterfaceFromLocal(interfacePath: string): Promise<ProjectInterface> {
+  const content = await readLocalFile(interfacePath);
+  const pi: ProjectInterface = JSON.parse(content);
+
+  if (pi.interface_version !== 2) {
+    throw new Error(`不支持的 interface 版本: ${pi.interface_version}，仅支持 version 2`);
+  }
+
+  return pi;
+}
+
+/**
+ * 从本地文件加载翻译文件（Tauri 环境）
+ * @param pi ProjectInterface 对象
+ * @param basePath interface.json 所在目录（相对于 exe 目录）
+ */
+async function loadTranslationsFromLocal(
+  pi: ProjectInterface,
+  basePath: string
+): Promise<Record<string, Record<string, string>>> {
+  const translations: Record<string, Record<string, string>> = {};
+
+  if (!pi.languages) return translations;
+
+  for (const [lang, relativePath] of Object.entries(pi.languages)) {
+    try {
+      const fullPath = joinPath(basePath, relativePath);
+      const langContent = await readLocalFile(fullPath);
+      translations[lang] = JSON.parse(langContent);
+    } catch (err) {
+      log.warn(`加载翻译文件失败 [${lang}]:`, err);
+    }
+  }
+
+  return translations;
+}
+
+// ============================================================================
+// 浏览器环境：通过 HTTP 加载（用于纯前端开发）
+// ============================================================================
 
 /**
  * 检查文件是否存在（HTTP 方式）
@@ -68,27 +137,50 @@ async function loadTranslationsFromHttp(
   return translations;
 }
 
+// ============================================================================
+// 统一入口
+// ============================================================================
+
 /**
- * 自动加载 interface.json
- * 优先读取当前目录下的 interface.json，如果不存在则读取 test/interface.json（调试模式）
+ * 从路径中提取目录部分
+ * 例如: "config/interface.json" -> "config"
+ *       "interface.json" -> ""
+ */
+function getDirectoryFromPath(filePath: string): string {
+  const lastSlash = filePath.lastIndexOf('/');
+  if (lastSlash === -1) return '';
+  return filePath.substring(0, lastSlash);
+}
+
+/**
+ * 加载 interface.json
+ * 
+ * basePath 是 interface.json 所在目录，所有相对路径（翻译文件、图标等）都基于此目录
+ * 
+ * Tauri 环境：从 exe 同目录加载
+ * 浏览器环境：从 HTTP 根路径加载（需要 public/interface.json）
  */
 export async function autoLoadInterface(): Promise<LoadResult> {
-  // 统一使用 HTTP 方式加载（Tauri 和浏览器都支持）
-  const primaryPath = '/interface.json';
-  const debugPath = '/test/interface.json';
+  // interface.json 的路径（将来可配置）
+  const interfacePath = 'interface.json';
+  // basePath 是 interface.json 所在目录
+  const basePath = getDirectoryFromPath(interfacePath);
 
-  if (await httpFileExists(primaryPath)) {
-    const pi = await loadInterfaceFromHttp(primaryPath);
-    const translations = await loadTranslationsFromHttp(pi, '');
-    return { interface: pi, translations, basePath: '', isDebugMode: false };
+  // Tauri 环境：通过 Rust 读取本地文件
+  if (isTauri()) {
+    log.info('Tauri 环境，加载 interface.json');
+    const pi = await loadInterfaceFromLocal(interfacePath);
+    const translations = await loadTranslationsFromLocal(pi, basePath);
+    return { interface: pi, translations, basePath };
   }
 
-  if (await httpFileExists(debugPath)) {
-    log.info('使用调试模式加载 interface.json');
-    const pi = await loadInterfaceFromHttp(debugPath);
-    const translations = await loadTranslationsFromHttp(pi, '/test');
-    return { interface: pi, translations, basePath: '/test', isDebugMode: true };
+  // 浏览器环境：通过 HTTP 加载
+  const httpPath = `/${interfacePath}`;
+  if (await httpFileExists(httpPath)) {
+    const pi = await loadInterfaceFromHttp(httpPath);
+    const translations = await loadTranslationsFromHttp(pi, basePath ? `/${basePath}` : '');
+    return { interface: pi, translations, basePath };
   }
 
-  throw new Error('未找到 interface.json 文件，请确保项目根目录或 test 目录下存在 interface.json');
+  throw new Error('未找到 interface.json 文件，请确保程序同目录下存在 interface.json');
 }

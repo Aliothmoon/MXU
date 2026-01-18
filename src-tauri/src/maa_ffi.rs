@@ -73,6 +73,7 @@ pub enum MaaToolkitAdbDeviceList {}
 pub enum MaaToolkitAdbDevice {}
 pub enum MaaToolkitDesktopWindowList {}
 pub enum MaaToolkitDesktopWindow {}
+pub enum MaaAgentClient {}
 
 // 回调类型
 pub type MaaEventCallback = Option<extern "C" fn(
@@ -148,10 +149,19 @@ type FnMaaToolkitDesktopWindowGetHandle = unsafe extern "C" fn(*const MaaToolkit
 type FnMaaToolkitDesktopWindowGetClassName = unsafe extern "C" fn(*const MaaToolkitDesktopWindow) -> *const c_char;
 type FnMaaToolkitDesktopWindowGetWindowName = unsafe extern "C" fn(*const MaaToolkitDesktopWindow) -> *const c_char;
 
+// AgentClient
+type FnMaaAgentClientCreateV2 = unsafe extern "C" fn(*const MaaStringBuffer) -> *mut MaaAgentClient;
+type FnMaaAgentClientDestroy = unsafe extern "C" fn(*mut MaaAgentClient);
+type FnMaaAgentClientIdentifier = unsafe extern "C" fn(*mut MaaAgentClient, *mut MaaStringBuffer) -> MaaBool;
+type FnMaaAgentClientBindResource = unsafe extern "C" fn(*mut MaaAgentClient, *mut MaaResource) -> MaaBool;
+type FnMaaAgentClientConnect = unsafe extern "C" fn(*mut MaaAgentClient) -> MaaBool;
+type FnMaaAgentClientDisconnect = unsafe extern "C" fn(*mut MaaAgentClient) -> MaaBool;
+
 /// MaaFramework 库包装器
 pub struct MaaLibrary {
     _framework_lib: Library,
     _toolkit_lib: Library,
+    _agent_client_lib: Library,
     
     // MaaFramework 函数
     pub maa_version: FnMaaVersion,
@@ -225,6 +235,14 @@ pub struct MaaLibrary {
     pub maa_toolkit_desktop_window_get_handle: FnMaaToolkitDesktopWindowGetHandle,
     pub maa_toolkit_desktop_window_get_class_name: FnMaaToolkitDesktopWindowGetClassName,
     pub maa_toolkit_desktop_window_get_window_name: FnMaaToolkitDesktopWindowGetWindowName,
+    
+    // AgentClient
+    pub maa_agent_client_create_v2: FnMaaAgentClientCreateV2,
+    pub maa_agent_client_destroy: FnMaaAgentClientDestroy,
+    pub maa_agent_client_identifier: FnMaaAgentClientIdentifier,
+    pub maa_agent_client_bind_resource: FnMaaAgentClientBindResource,
+    pub maa_agent_client_connect: FnMaaAgentClientConnect,
+    pub maa_agent_client_disconnect: FnMaaAgentClientDisconnect,
 }
 
 // 注意：函数指针是 Send 和 Sync 的
@@ -233,6 +251,23 @@ unsafe impl Sync for MaaLibrary {}
 
 impl MaaLibrary {
     pub fn load(lib_dir: &Path) -> Result<Self, String> {
+        // Windows: 将 lib_dir 添加到 DLL 搜索路径，确保依赖 DLL 能被找到
+        #[cfg(windows)]
+        {
+            use std::os::windows::ffi::OsStrExt;
+            #[link(name = "kernel32")]
+            extern "system" {
+                fn SetDllDirectoryW(path: *const u16) -> i32;
+            }
+            let wide_path: Vec<u16> = lib_dir.as_os_str().encode_wide().chain(std::iter::once(0)).collect();
+            let result = unsafe { SetDllDirectoryW(wide_path.as_ptr()) };
+            if result == 0 {
+                println!("[MaaFFI] Warning: SetDllDirectoryW failed");
+            } else {
+                println!("[MaaFFI] SetDllDirectoryW set to {:?}", lib_dir);
+            }
+        }
+        
         unsafe {
             // 加载库
             #[cfg(windows)]
@@ -249,10 +284,27 @@ impl MaaLibrary {
             #[cfg(target_os = "linux")]
             let toolkit_path = lib_dir.join("libMaaToolkit.so");
             
+            #[cfg(windows)]
+            let agent_client_path = lib_dir.join("MaaAgentClient.dll");
+            #[cfg(target_os = "macos")]
+            let agent_client_path = lib_dir.join("libMaaAgentClient.dylib");
+            #[cfg(target_os = "linux")]
+            let agent_client_path = lib_dir.join("libMaaAgentClient.so");
+            
+            println!("[MaaFFI] Loading MaaFramework from {:?}...", framework_path);
             let framework_lib = Library::new(&framework_path)
                 .map_err(|e| format!("Failed to load MaaFramework: {} (path: {:?})", e, framework_path))?;
+            println!("[MaaFFI] MaaFramework loaded successfully");
+            
+            println!("[MaaFFI] Loading MaaToolkit from {:?}...", toolkit_path);
             let toolkit_lib = Library::new(&toolkit_path)
                 .map_err(|e| format!("Failed to load MaaToolkit: {} (path: {:?})", e, toolkit_path))?;
+            println!("[MaaFFI] MaaToolkit loaded successfully");
+            
+            println!("[MaaFFI] Loading MaaAgentClient from {:?}...", agent_client_path);
+            let agent_client_lib = Library::new(&agent_client_path)
+                .map_err(|e| format!("Failed to load MaaAgentClient: {} (path: {:?})", e, agent_client_path))?;
+            println!("[MaaFFI] MaaAgentClient loaded successfully");
             
             // 加载函数宏 - 使用 transmute 进行类型转换
             macro_rules! load_fn {
@@ -337,8 +389,17 @@ impl MaaLibrary {
                 maa_toolkit_desktop_window_get_class_name: load_fn!(toolkit_lib, "MaaToolkitDesktopWindowGetClassName"),
                 maa_toolkit_desktop_window_get_window_name: load_fn!(toolkit_lib, "MaaToolkitDesktopWindowGetWindowName"),
                 
+                // AgentClient
+                maa_agent_client_create_v2: load_fn!(agent_client_lib, "MaaAgentClientCreateV2"),
+                maa_agent_client_destroy: load_fn!(agent_client_lib, "MaaAgentClientDestroy"),
+                maa_agent_client_identifier: load_fn!(agent_client_lib, "MaaAgentClientIdentifier"),
+                maa_agent_client_bind_resource: load_fn!(agent_client_lib, "MaaAgentClientBindResource"),
+                maa_agent_client_connect: load_fn!(agent_client_lib, "MaaAgentClientConnect"),
+                maa_agent_client_disconnect: load_fn!(agent_client_lib, "MaaAgentClientDisconnect"),
+                
                 _framework_lib: framework_lib,
                 _toolkit_lib: toolkit_lib,
+                _agent_client_lib: agent_client_lib,
             })
         }
     }

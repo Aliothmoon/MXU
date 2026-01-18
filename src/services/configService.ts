@@ -4,7 +4,16 @@ import { loggers } from '@/utils/logger';
 
 const log = loggers.config;
 
-const CONFIG_FILE_NAME = 'mxu.json';
+/**
+ * 生成配置文件名
+ * @param projectName 项目名称（来自 interface.json 的 name 字段）
+ */
+function getConfigFileName(projectName?: string): string {
+  if (projectName) {
+    return `mxu-${projectName}.json`;
+  }
+  return 'mxu.json';
+}
 
 // 检测是否在 Tauri 环境中
 const isTauri = () => {
@@ -46,20 +55,23 @@ async function resolveFileSystemPath(httpPath: string): Promise<string> {
 /**
  * 获取配置文件路径
  */
-function getConfigPath(basePath: string): string {
+function getConfigPath(basePath: string, projectName?: string): string {
+  const fileName = getConfigFileName(projectName);
   if (basePath === '' || basePath === '.') {
-    return `./${CONFIG_FILE_NAME}`;
+    return `./${fileName}`;
   }
-  return `${basePath}/${CONFIG_FILE_NAME}`;
+  return `${basePath}/${fileName}`;
 }
 
 /**
  * 从文件加载配置
+ * @param basePath 基础路径
+ * @param projectName 项目名称（来自 interface.json 的 name 字段）
  */
-export async function loadConfig(basePath: string): Promise<MxuConfig> {
+export async function loadConfig(basePath: string, projectName?: string): Promise<MxuConfig> {
   if (isTauri()) {
     const fsBasePath = await resolveFileSystemPath(basePath);
-    const configPath = getConfigPath(fsBasePath);
+    const configPath = getConfigPath(fsBasePath, projectName);
     
     log.debug('加载配置, 路径:', configPath);
     
@@ -81,7 +93,8 @@ export async function loadConfig(basePath: string): Promise<MxuConfig> {
   } else {
     // 浏览器环境：尝试从 public 目录加载
     try {
-      const fetchPath = basePath === '' ? `/${CONFIG_FILE_NAME}` : `${basePath}/${CONFIG_FILE_NAME}`;
+      const fileName = getConfigFileName(projectName);
+      const fetchPath = basePath === '' ? `/${fileName}` : `${basePath}/${fileName}`;
       const response = await fetch(fetchPath);
       if (response.ok) {
         const contentType = response.headers.get('content-type');
@@ -101,12 +114,16 @@ export async function loadConfig(basePath: string): Promise<MxuConfig> {
 
 /**
  * 保存配置到文件
+ * @param basePath 基础路径
+ * @param config 配置对象
+ * @param projectName 项目名称（来自 interface.json 的 name 字段）
  */
-export async function saveConfig(basePath: string, config: MxuConfig): Promise<boolean> {
+export async function saveConfig(basePath: string, config: MxuConfig, projectName?: string): Promise<boolean> {
   if (!isTauri()) {
     // 浏览器环境不支持保存文件，使用 localStorage 作为后备
     try {
-      localStorage.setItem('mxu-config', JSON.stringify(config));
+      const storageKey = projectName ? `mxu-config-${projectName}` : 'mxu-config';
+      localStorage.setItem(storageKey, JSON.stringify(config));
       log.debug('配置已保存到 localStorage');
       return true;
     } catch {
@@ -115,7 +132,7 @@ export async function saveConfig(basePath: string, config: MxuConfig): Promise<b
   }
 
   const fsBasePath = await resolveFileSystemPath(basePath);
-  const configPath = getConfigPath(fsBasePath);
+  const configPath = getConfigPath(fsBasePath, projectName);
   
   log.debug('保存配置, 路径:', configPath);
 
@@ -140,12 +157,14 @@ export async function saveConfig(basePath: string, config: MxuConfig): Promise<b
 
 /**
  * 浏览器环境下从 localStorage 加载配置
+ * @param projectName 项目名称（来自 interface.json 的 name 字段）
  */
-export function loadConfigFromStorage(): MxuConfig | null {
+export function loadConfigFromStorage(projectName?: string): MxuConfig | null {
   if (isTauri()) return null;
   
   try {
-    const stored = localStorage.getItem('mxu-config');
+    const storageKey = projectName ? `mxu-config-${projectName}` : 'mxu-config';
+    const stored = localStorage.getItem(storageKey);
     if (stored) {
       return JSON.parse(stored) as MxuConfig;
     }

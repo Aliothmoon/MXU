@@ -1,9 +1,25 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useAppStore } from '@/stores/appStore';
-import { resolveIconPath } from '@/services/contentResolver';
+import { loadIconAsDataUrl } from '@/services/contentResolver';
 import type { OptionValue, CaseItem, InputItem } from '@/types/interface';
 import clsx from 'clsx';
 import { Info, AlertCircle } from 'lucide-react';
+
+/** 异步加载图标组件 */
+function AsyncIcon({ icon, basePath, className }: { icon?: string; basePath: string; className?: string }) {
+  const [iconUrl, setIconUrl] = useState<string | undefined>(undefined);
+
+  useEffect(() => {
+    if (!icon) {
+      setIconUrl(undefined);
+      return;
+    }
+    loadIconAsDataUrl(icon, basePath).then(setIconUrl);
+  }, [icon, basePath]);
+
+  if (!iconUrl) return null;
+  return <img src={iconUrl} alt="" className={className} />;
+}
 
 interface OptionEditorProps {
   instanceId: string;
@@ -27,13 +43,10 @@ function OptionLabel({
   basePath: string;
 }) {
   const [showTooltip, setShowTooltip] = useState(false);
-  const iconUrl = icon ? resolveIconPath(icon, basePath) : undefined;
 
   return (
     <div className="flex items-center gap-1.5 min-w-[80px]">
-      {iconUrl && (
-        <img src={iconUrl} alt="" className="w-4 h-4 object-contain flex-shrink-0" />
-      )}
+      <AsyncIcon icon={icon} basePath={basePath} className="w-4 h-4 object-contain flex-shrink-0" />
       <span className="text-sm text-text-secondary">{label}</span>
       {description && (
         <div className="relative">
@@ -88,15 +101,11 @@ function InputField({
     return null;
   }, [input.verify, value, patternMsg]);
 
-  const iconUrl = input.icon ? resolveIconPath(input.icon, basePath) : undefined;
-
   return (
     <div className="space-y-1">
       <div className="flex items-center gap-3">
         <div className="flex items-center gap-1.5 min-w-[80px]">
-          {iconUrl && (
-            <img src={iconUrl} alt="" className="w-4 h-4 object-contain flex-shrink-0" />
-          )}
+          <AsyncIcon icon={input.icon} basePath={basePath} className="w-4 h-4 object-contain flex-shrink-0" />
           <span className="text-sm text-text-tertiary">{inputLabel}</span>
           {inputDescription && (
             <div className="relative">

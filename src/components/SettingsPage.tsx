@@ -22,7 +22,7 @@ import { checkUpdate, openMirrorChyanWebsite } from '@/services/updateService';
 import { defaultWindowSize } from '@/types/config';
 import { useAppStore } from '@/stores/appStore';
 import { setLanguage as setI18nLanguage } from '@/i18n';
-import { resolveContent, resolveIconPath, simpleMarkdownToHtml, resolveI18nText } from '@/services/contentResolver';
+import { resolveContent, loadIconAsDataUrl, simpleMarkdownToHtml, resolveI18nText } from '@/services/contentResolver';
 import { maaService } from '@/services/maaService';
 import clsx from 'clsx';
 
@@ -73,7 +73,6 @@ export function SettingsPage() {
 
   const langKey = language === 'zh-CN' ? 'zh_cn' : 'en_us';
   const translations = interfaceTranslations[langKey];
-  const isDebugMode = basePath === '/test';
 
   // 版本信息（用于调试展示）
   useEffect(() => {
@@ -114,13 +113,12 @@ export function SettingsPage() {
       
       const options = { translations, basePath };
       
-      const [description, license, contact] = await Promise.all([
+      const [description, license, contact, iconPath] = await Promise.all([
         resolveContent(projectInterface.description, options),
         resolveContent(projectInterface.license, options),
         resolveContent(projectInterface.contact, options),
+        loadIconAsDataUrl(projectInterface.icon, basePath, translations),
       ]);
-      
-      const iconPath = resolveIconPath(projectInterface.icon, basePath, translations);
       
       setResolvedContent({ description, license, contact, iconPath });
       setIsLoading(false);
@@ -428,14 +426,6 @@ export function SettingsPage() {
             </h2>
             
             <div className="bg-bg-secondary rounded-xl p-4 border border-border space-y-4">
-              {/* 放在设置页调试模块里，避免主界面占位；并且只有加载了 test/interface.json 才显示 */}
-              {isDebugMode && (
-                <div className="bg-amber-100 dark:bg-amber-900/30 border border-amber-300 dark:border-amber-700 rounded-lg px-3 py-2 flex items-center justify-center gap-2 text-amber-700 dark:text-amber-300 text-sm">
-                  <Bug className="w-4 h-4" />
-                  <span>调试模式：正在使用 test/interface.json</span>
-                </div>
-              )}
-
               {/* 版本信息 */}
               <div className="text-sm text-text-secondary space-y-1">
                 <p className="font-medium text-text-primary">{t('debug.versions')}</p>

@@ -44,10 +44,26 @@ async function setWindowTitle(title: string) {
   }
 }
 
+// 最小窗口尺寸
+const MIN_WINDOW_WIDTH = 800;
+const MIN_WINDOW_HEIGHT = 500;
+
+/**
+ * 验证窗口尺寸是否有效
+ */
+function isValidWindowSize(width: number, height: number): boolean {
+  return width >= MIN_WINDOW_WIDTH && height >= MIN_WINDOW_HEIGHT;
+}
+
 /**
  * 设置窗口大小
  */
 async function setWindowSize(width: number, height: number) {
+  if (!isValidWindowSize(width, height)) {
+    log.warn('窗口大小无效，跳过设置:', { width, height });
+    return;
+  }
+  
   if (isTauri()) {
     try {
       const { getCurrentWindow } = await import('@tauri-apps/api/window');
@@ -144,12 +160,13 @@ function App() {
         setInterfaceTranslations(lang, trans);
       }
 
-      // 加载用户配置（mxu.json）
-      let config = await loadConfig(result.basePath);
+      // 加载用户配置（mxu-{项目名}.json）
+      const projectName = result.interface.name;
+      let config = await loadConfig(result.basePath, projectName);
       
       // 浏览器环境下，如果没有从 public 目录加载到配置，尝试从 localStorage 加载
       if (config.instances.length === 0) {
-        const storageConfig = loadConfigFromStorage();
+        const storageConfig = loadConfigFromStorage(projectName);
         if (storageConfig && storageConfig.instances.length > 0) {
           config = storageConfig;
         }
@@ -239,7 +256,7 @@ function App() {
           }
           resizeTimeout = setTimeout(async () => {
             const size = await getWindowSize();
-            if (size) {
+            if (size && isValidWindowSize(size.width, size.height)) {
               setWindowSizeStore(size);
             }
           }, 500);

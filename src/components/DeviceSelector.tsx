@@ -63,75 +63,14 @@ export function DeviceSelector({ instanceId, controllerDef, onConnectionChange }
 
   // 初始化 MaaFramework（如果还没初始化）
   const ensureMaaInitialized = async () => {
-    // 尝试获取版本来检测是否已初始化
     try {
       await maaService.getVersion();
       return true;
     } catch {
-      // 未初始化，需要初始化
-      log.debug('MaaFramework 未初始化，尝试初始化...');
+      // 未初始化，使用默认路径初始化（exe 目录下的 maafw）
+      await maaService.init();
+      return true;
     }
-    
-    // 构建可能的库路径列表
-    const possibleLibPaths: string[] = [];
-    
-    // 检测是否在 Tauri 环境
-    const isTauriEnv = typeof window !== 'undefined' && '__TAURI__' in window;
-    
-    if (isTauriEnv) {
-      try {
-        const { resourceDir, appDataDir } = await import('@tauri-apps/api/path');
-        
-        // 尝试资源目录
-        try {
-          const resDir = await resourceDir();
-          possibleLibPaths.push(resDir);
-          possibleLibPaths.push(`${resDir}bin`);
-        } catch {
-          // 忽略
-        }
-        
-        // 尝试应用数据目录
-        try {
-          const dataDir = await appDataDir();
-          possibleLibPaths.push(dataDir);
-        } catch {
-          // 忽略
-        }
-        
-        // 开发环境：尝试当前工作目录
-        possibleLibPaths.push('.');
-        possibleLibPaths.push('./bin');
-        
-        // 如果有 basePath（实际文件系统路径），也尝试它
-        if (basePath && !basePath.startsWith('/') && !basePath.startsWith('http')) {
-          possibleLibPaths.push(basePath);
-          possibleLibPaths.push(`${basePath}/bin`);
-        }
-      } catch {
-        // 忽略
-      }
-    }
-    
-    // 兜底路径
-    if (possibleLibPaths.length === 0) {
-      possibleLibPaths.push('.');
-      possibleLibPaths.push('./bin');
-    }
-    
-    log.debug('尝试初始化路径:', possibleLibPaths);
-    
-    for (const libPath of possibleLibPaths) {
-      try {
-        await maaService.init(libPath);
-        return true;
-      } catch {
-        // 继续尝试下一个路径
-      }
-    }
-    
-    log.error('所有路径均无法初始化 MaaFramework');
-    return false;
   };
 
   // 搜索设备

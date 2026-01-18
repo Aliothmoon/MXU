@@ -143,3 +143,16 @@ export function parseWin32InputMethod(name: string): number {
   // 默认使用 Seize
   return Number(Win32InputMethod.Seize);
 }
+
+/** Agent 配置（用于启动子进程） */
+export interface AgentConfig {
+  child_exec: string;
+  child_args?: string[];
+  identifier?: string;
+}
+
+/** 任务配置 */
+export interface TaskConfig {
+  entry: string;
+  pipeline_override: string;
+}

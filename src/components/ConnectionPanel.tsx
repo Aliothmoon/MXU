@@ -162,39 +162,9 @@ export function ConnectionPanel() {
       await maaService.getVersion();
       return true;
     } catch {
-      // 尝试初始化
-      const possibleLibPaths: string[] = [];
-      const isTauriEnv = typeof window !== 'undefined' && '__TAURI__' in window;
-      
-      if (isTauriEnv) {
-        try {
-          const { resourceDir, appDataDir } = await import('@tauri-apps/api/path');
-          try {
-            const resDir = await resourceDir();
-            possibleLibPaths.push(resDir, `${resDir}bin`);
-          } catch {}
-          try {
-            const dataDir = await appDataDir();
-            possibleLibPaths.push(dataDir);
-          } catch {}
-          possibleLibPaths.push('.', './bin');
-          if (basePath && !basePath.startsWith('/') && !basePath.startsWith('http')) {
-            possibleLibPaths.push(basePath, `${basePath}/bin`);
-          }
-        } catch {}
-      }
-      
-      if (possibleLibPaths.length === 0) {
-        possibleLibPaths.push('.', './bin');
-      }
-      
-      for (const libPath of possibleLibPaths) {
-        try {
-          await maaService.init(libPath);
-          return true;
-        } catch {}
-      }
-      return false;
+      // 未初始化，使用默认路径初始化（exe 目录下的 maafw）
+      await maaService.init();
+      return true;
     }
   };
 

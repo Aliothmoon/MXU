@@ -7,6 +7,7 @@
  * 4. 直接文本
  */
 
+import { invoke } from '@tauri-apps/api/core';
 import { loggers } from '@/utils/logger';
 import { marked } from 'marked';
 import DOMPurify from 'dompurify';
@@ -39,23 +40,27 @@ function isFilePath(content: string): boolean {
 }
 
 /**
- * 从文件路径加载内容
+ * 规范化文件路径（移除 ./ 前缀）
+ */
+function normalizeFilePath(filePath: string): string {
+  if (filePath.startsWith('./')) {
+    return filePath.slice(2);
+  }
+  return filePath;
+}
+
+/**
+ * 从文件路径加载文本内容
  */
 async function loadFromFile(filePath: string, basePath: string): Promise<string> {
-  // 构建完整路径
-  const fullPath = filePath.startsWith('./')
-    ? `${basePath}/${filePath.slice(2)}`
-    : filePath.startsWith('../')
-      ? `${basePath}/${filePath}`
-      : `${basePath}/${filePath}`;
-
+  const normalizedPath = normalizeFilePath(filePath);
+  
   if (isTauri()) {
-    const { readTextFile, exists } = await import('@tauri-apps/plugin-fs');
-    if (await exists(fullPath)) {
-      return await readTextFile(fullPath);
-    }
-    throw new Error(`文件不存在: ${fullPath}`);
+    // Tauri 环境：使用 Rust 命令读取 exe 同目录的文件
+    return await invoke<string>('read_local_file', { filename: normalizedPath });
   } else {
+    // 浏览器环境：使用 HTTP 请求
+    const fullPath = basePath ? `${basePath}/${normalizedPath}` : `/${normalizedPath}`;
     const response = await fetch(fullPath);
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}`);
@@ -73,6 +78,64 @@ async function loadFromUrl(url: string): Promise<string> {
     throw new Error(`HTTP ${response.status}`);
   }
   return await response.text();
+}
+
+/**
+ * 读取本地文本文件（供外部使用）
+ */
+export async function readLocalTextFile(filename: string): Promise<string> {
+  if (isTauri()) {
+    return await invoke<string>('read_local_file', { filename });
+  } else {
+    const response = await fetch(`/${filename}`);
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+    return await response.text();
+  }
+}
+
+/**
+ * 读取本地二进制文件并返回 base64（供外部使用）
+ */
+export async function readLocalFileBase64(filename: string): Promise<string> {
+  if (isTauri()) {
+    return await invoke<string>('read_local_file_base64', { filename });
+  } else {
+    // 浏览器环境：通过 fetch 获取并转换为 base64
+    const response = await fetch(`/${filename}`);
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+    const blob = await response.blob();
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const result = reader.result as string;
+        // 移除 data URL 前缀，只返回 base64 部分
+        const base64 = result.split(',')[1];
+        resolve(base64);
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+  }
+}
+
+/**
+ * 检查本地文件是否存在
+ */
+export async function localFileExists(filename: string): Promise<boolean> {
+  if (isTauri()) {
+    return await invoke<boolean>('local_file_exists', { filename });
+  } else {
+    try {
+      const response = await fetch(`/${filename}`, { method: 'HEAD' });
+      return response.ok;
+    } catch {
+      return false;
+    }
+  }
 }
 
 export interface ResolveOptions {
@@ -150,8 +213,8 @@ export async function resolveContent(
 }
 
 /**
- * 解析图标路径
- * 返回可用于 img src 的路径
+ * 解析图标路径（同步版本，仅返回路径）
+ * 用于非 Tauri 环境或作为 key
  */
 export function resolveIconPath(
   iconPath: string | undefined,
@@ -168,14 +231,86 @@ export function resolveIconPath(
   // 如果是 URL 直接返回
   if (isUrl(resolved)) return resolved;
   
-  // 构建完整路径
-  if (resolved.startsWith('./')) {
-    resolved = `${basePath}/${resolved.slice(2)}`;
-  } else if (!resolved.startsWith('/') && !resolved.startsWith('http')) {
-    resolved = `${basePath}/${resolved}`;
+  // 规范化路径
+  resolved = normalizeFilePath(resolved);
+  
+  // 浏览器环境：构建 HTTP 路径
+  if (!isTauri()) {
+    if (!resolved.startsWith('/')) {
+      resolved = basePath ? `${basePath}/${resolved}` : `/${resolved}`;
+    }
   }
   
   return resolved;
+}
+
+/**
+ * 拼接路径（处理空 basePath 的情况）
+ */
+function joinPath(basePath: string, relativePath: string): string {
+  if (!basePath) return relativePath;
+  return `${basePath}/${relativePath}`;
+}
+
+/**
+ * 加载图标为 data URL（异步版本）
+ * 在 Tauri 环境下读取本地文件并转换为 base64 data URL
+ * 
+ * @param iconPath 图标路径（相对于 interface.json 所在目录）
+ * @param basePath interface.json 所在目录
+ * @param translations 翻译表
+ */
+export async function loadIconAsDataUrl(
+  iconPath: string | undefined,
+  basePath: string = '',
+  translations?: Record<string, string>
+): Promise<string | undefined> {
+  if (!iconPath) return undefined;
+  
+  // 先处理国际化
+  let resolved = resolveI18nText(iconPath, translations);
+  
+  if (!resolved) return undefined;
+  
+  // 如果是 URL 直接返回
+  if (isUrl(resolved)) return resolved;
+  
+  // 规范化路径并拼接 basePath
+  resolved = normalizeFilePath(resolved);
+  const fullPath = joinPath(basePath, resolved);
+  
+  try {
+    if (isTauri()) {
+      // Tauri 环境：读取文件并转换为 base64 data URL
+      const base64 = await readLocalFileBase64(fullPath);
+      const ext = resolved.split('.').pop()?.toLowerCase() || 'png';
+      const mimeType = getMimeType(ext);
+      return `data:${mimeType};base64,${base64}`;
+    } else {
+      // 浏览器环境：直接返回 HTTP 路径
+      return `/${fullPath}`;
+    }
+  } catch (err) {
+    log.warn(`加载图标失败 [${fullPath}]:`, err);
+    return undefined;
+  }
+}
+
+/**
+ * 根据文件扩展名获取 MIME 类型
+ */
+function getMimeType(ext: string): string {
+  const mimeTypes: Record<string, string> = {
+    'png': 'image/png',
+    'jpg': 'image/jpeg',
+    'jpeg': 'image/jpeg',
+    'gif': 'image/gif',
+    'webp': 'image/webp',
+    'svg': 'image/svg+xml',
+    'ico': 'image/x-icon',
+    'bmp': 'image/bmp',
+  };
+  return mimeTypes[ext] || 'application/octet-stream';
 }
 
 // 配置 marked，使用 use() API 添加 Tailwind 样式

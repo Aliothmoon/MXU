@@ -867,7 +867,8 @@ function debouncedSaveConfig() {
   saveTimeout = setTimeout(() => {
     const state = useAppStore.getState();
     const config = generateConfig();
-    saveConfig(state.basePath, config);
+    const projectName = state.projectInterface?.name;
+    saveConfig(state.basePath, config, projectName);
   }, 500);
 }
 

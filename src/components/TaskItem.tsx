@@ -238,80 +238,85 @@ export function TaskItem({ instanceId, task }: TaskItemProps) {
           />
         </label>
 
-        {/* 任务名称 */}
-        {isEditing ? (
-          <div className="flex-1 flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
-            <input
-              type="text"
-              value={editName}
-              onChange={(e) => setEditName(e.target.value)}
-              onKeyDown={handleKeyDown}
-              onBlur={handleSaveEdit}
-              placeholder={originalLabel}
-              autoFocus
-              className={clsx(
-                'flex-1 px-2 py-1 text-sm rounded border border-accent',
-                'bg-bg-primary text-text-primary',
-                'focus:outline-none focus:ring-1 focus:ring-accent/20'
-              )}
-            />
-            <button
-              onMouseDown={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                handleSaveEdit();
-              }}
-              className="p-1 rounded hover:bg-success/10 text-success"
-            >
-              <Check className="w-4 h-4" />
-            </button>
-            <button
-              onMouseDown={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                handleCancelEdit();
-              }}
-              className="p-1 rounded hover:bg-error/10 text-error"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          </div>
-        ) : (
-          <div 
-            className="flex-1 flex items-center gap-1 min-w-0 cursor-pointer"
-            onDoubleClick={handleDoubleClick}
-            title={t('taskItem.rename')}
-          >
-            <span
-              className={clsx(
-                'text-sm font-medium truncate',
-                task.enabled ? 'text-text-primary' : 'text-text-muted'
-              )}
-            >
-              {displayName}
-            </span>
-            {task.customName && (
-              <span className="flex-shrink-0 text-xs text-text-muted">
-                ({originalLabel})
-              </span>
-            )}
-          </div>
-        )}
+        {/* 任务名称 + 展开区域容器 */}
+        <div className="flex-1 flex items-center min-w-0">
+          {isEditing ? (
+            <div className="flex-1 flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+              <input
+                type="text"
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+                onKeyDown={handleKeyDown}
+                onBlur={handleSaveEdit}
+                placeholder={originalLabel}
+                autoFocus
+                className={clsx(
+                  'flex-1 px-2 py-1 text-sm rounded border border-accent',
+                  'bg-bg-primary text-text-primary',
+                  'focus:outline-none focus:ring-1 focus:ring-accent/20'
+                )}
+              />
+              <button
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  handleSaveEdit();
+                }}
+                className="p-1 rounded hover:bg-success/10 text-success"
+              >
+                <Check className="w-4 h-4" />
+              </button>
+              <button
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  handleCancelEdit();
+                }}
+                className="p-1 rounded hover:bg-error/10 text-error"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          ) : (
+            <>
+              {/* 任务名称 */}
+              <div 
+                className="flex items-center gap-1 min-w-0 cursor-pointer"
+                onDoubleClick={handleDoubleClick}
+                title={t('taskItem.rename')}
+              >
+                <span
+                  className={clsx(
+                    'text-sm font-medium truncate',
+                    task.enabled ? 'text-text-primary' : 'text-text-muted'
+                  )}
+                >
+                  {displayName}
+                </span>
+                {task.customName && (
+                  <span className="flex-shrink-0 text-xs text-text-muted">
+                    ({originalLabel})
+                  </span>
+                )}
+              </div>
 
-        {/* 展开/折叠按钮 */}
-        {hasOptions && !isEditing && (
-          <button
-            onClick={() => toggleTaskExpanded(instanceId, task.id)}
-            className="p-1.5 rounded hover:bg-bg-hover transition-colors"
-            title={task.expanded ? t('taskItem.collapse') : t('taskItem.expand')}
-          >
-            {task.expanded ? (
-              <ChevronDown className="w-4 h-4 text-text-secondary" />
-            ) : (
-              <ChevronRight className="w-4 h-4 text-text-secondary" />
-            )}
-          </button>
-        )}
+              {/* 展开/折叠点击区域 - 占据右侧剩余空间 */}
+              {hasOptions && (
+                <div
+                  onClick={() => toggleTaskExpanded(instanceId, task.id)}
+                  className="flex-1 flex items-center justify-end cursor-pointer self-stretch min-h-[28px] pl-2"
+                  title={task.expanded ? t('taskItem.collapse') : t('taskItem.expand')}
+                >
+                  {task.expanded ? (
+                    <ChevronDown className="w-4 h-4 text-text-secondary" />
+                  ) : (
+                    <ChevronRight className="w-4 h-4 text-text-secondary" />
+                  )}
+                </div>
+              )}
+            </>
+          )}
+        </div>
 
         {/* 删除按钮 - hover 时显示 */}
         {!isEditing && (

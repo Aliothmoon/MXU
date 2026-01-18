@@ -93,15 +93,6 @@ your-project/
 3. 确保同级目录下存在 `interface.json` 文件
 4. 运行 MXU
 
-### interface.json 加载规则
-
-MXU 会按以下顺序查找 `interface.json`：
-
-1. **正式模式**：`./interface.json`（程序所在目录）
-2. **调试模式**：`./test/interface.json`（用于开发测试）
-
-调试模式会在界面顶部显示提示条。
-
 ### 配置文件
 
 用户配置保存在 `mxu.json` 中，包含：
