@@ -243,6 +243,7 @@ export default {
     running: '运行中',
     succeeded: '已完成',
     failed: '已失败',
+    noEnabledTasks: '没有启用的任务',
   },
 
   // 最近关闭

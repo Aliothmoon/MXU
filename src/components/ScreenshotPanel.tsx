@@ -190,13 +190,16 @@ export function ScreenshotPanel() {
       streamingRef.current = false;
       setIsStreaming(false);
     } else {
-      // 开始流
+      // 开始流时，如果面板是折叠状态则自动展开
+      if (!screenshotPanelExpanded) {
+        setScreenshotPanelExpanded(true);
+      }
       streamingRef.current = true;
       setIsStreaming(true);
       setError(null);
       streamLoop();
     }
-  }, [instanceId, isStreaming, setIsStreaming, streamLoop]);
+  }, [instanceId, isStreaming, setIsStreaming, streamLoop, screenshotPanelExpanded, setScreenshotPanelExpanded]);
 
   // 实例切换时重置截图和错误，但保留截图流状态
   useEffect(() => {

@@ -22,7 +22,8 @@ import { useAppStore } from '@/stores/appStore';
 import { maaService } from '@/services/maaService';
 import { ContextMenu, useContextMenu, type MenuItem } from './ContextMenu';
 import { resolveI18nText } from '@/services/contentResolver';
-import { loggers } from '@/utils/logger';
+import { loggers, generateTaskPipelineOverride } from '@/utils';
+import type { TaskConfig, AgentConfig } from '@/types/maa';
 
 const log = loggers.ui;
 
@@ -53,7 +54,22 @@ function InstanceCard({
     interfaceTranslations,
     language,
     instanceTaskRunStatus,
+    instanceResourceLoaded,
     resolveI18nText: storeResolveI18nText,
+    // 任务控制相关
+    updateInstance,
+    setInstanceTaskStatus,
+    setInstanceCurrentTaskId,
+    setAllTasksRunStatus,
+    registerMaaTaskMapping,
+    setTaskRunStatus,
+    clearTaskRunStatus,
+    setPendingTaskIds,
+    setCurrentTaskIndex,
+    clearPendingTasks,
+    basePath,
+    registerTaskIdName,
+    registerEntryTaskName,
   } = useAppStore();
   
   const langKey = language === 'zh-CN' ? 'zh_cn' : 'en_us';
@@ -63,18 +79,25 @@ function InstanceCard({
 
   const [screenshotUrl, setScreenshotUrl] = useState<string | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isStarting, setIsStarting] = useState(false);
+  const [isStopping, setIsStopping] = useState(false);
   const streamingRef = useRef(false);
   const lastFrameTimeRef = useRef(0);
   const frameIntervalRef = useRef(1000 / 3); // 中控台使用更低的帧率节省资源
+  const runningInstanceIdRef = useRef<string | null>(null);
 
   const connectionStatus = instanceConnectionStatus[instanceId];
   const taskStatus = instanceTaskStatus[instanceId];
   const isStreaming = instanceScreenshotStreaming[instanceId] ?? false;
   const isConnected = connectionStatus === 'Connected';
+  const isResourceLoaded = instanceResourceLoaded[instanceId] || false;
   
   // 获取当前实例
   const instance = instances.find(i => i.id === instanceId);
   const isRunning = instance?.isRunning || false;
+  const tasks = instance?.selectedTasks || [];
+  const enabledTasks = tasks.filter(t => t.enabled);
+  const canRun = isConnected && isResourceLoaded && enabledTasks.length > 0;
   
   // 获取连接状态信息
   const getStatusInfo = useCallback(() => {
@@ -140,6 +163,128 @@ function InstanceCard({
   
   const runningTaskName = getRunningTaskName();
 
+  // 启动/停止任务
+  const handleStartStop = useCallback(async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    
+    if (!instance || !canRun && !isRunning) return;
+    
+    if (isRunning) {
+      // 停止任务
+      try {
+        log.info(`[${instanceName}] 停止任务...`);
+        setIsStopping(true);
+        await maaService.stopTask(instanceId);
+        if (projectInterface?.agent) {
+          await maaService.stopAgent(instanceId);
+        }
+        updateInstance(instanceId, { isRunning: false });
+        setInstanceTaskStatus(instanceId, null);
+        setInstanceCurrentTaskId(instanceId, null);
+        clearTaskRunStatus(instanceId);
+        clearPendingTasks(instanceId);
+        runningInstanceIdRef.current = null;
+      } catch (err) {
+        log.error(`[${instanceName}] 停止任务失败:`, err);
+      } finally {
+        setIsStopping(false);
+      }
+    } else {
+      // 启动任务
+      if (!canRun) return;
+      
+      setIsStarting(true);
+      
+      try {
+        log.info(`[${instanceName}] 开始执行任务, 数量:`, enabledTasks.length);
+        
+        // 构建任务配置列表
+        const taskConfigs: TaskConfig[] = [];
+        for (const selectedTask of enabledTasks) {
+          const taskDef = projectInterface?.task.find(t => t.name === selectedTask.taskName);
+          if (!taskDef) continue;
+          
+          taskConfigs.push({
+            entry: taskDef.entry,
+            pipeline_override: generateTaskPipelineOverride(selectedTask, projectInterface),
+          });
+          const taskDisplayName = selectedTask.customName || selectedTask.taskName;
+          registerEntryTaskName(taskDef.entry, taskDisplayName);
+        }
+        
+        if (taskConfigs.length === 0) {
+          log.warn(`[${instanceName}] 没有可执行的任务`);
+          setIsStarting(false);
+          return;
+        }
+        
+        // 准备 Agent 配置
+        let agentConfig: AgentConfig | undefined;
+        if (projectInterface?.agent) {
+          agentConfig = {
+            child_exec: projectInterface.agent.child_exec,
+            child_args: projectInterface.agent.child_args,
+            identifier: projectInterface.agent.identifier,
+            timeout: projectInterface.agent.timeout,
+          };
+        }
+        
+        updateInstance(instanceId, { isRunning: true });
+        setInstanceTaskStatus(instanceId, 'Running');
+        
+        // 启动任务
+        const taskIds = await maaService.startTasks(instanceId, taskConfigs, agentConfig, basePath);
+        
+        log.info(`[${instanceName}] 任务已提交, task_ids:`, taskIds);
+        
+        // 初始化任务运行状态
+        const enabledTaskIds = enabledTasks.map(t => t.id);
+        setAllTasksRunStatus(instanceId, enabledTaskIds, 'pending');
+        
+        // 记录映射关系
+        taskIds.forEach((maaTaskId, index) => {
+          if (enabledTasks[index]) {
+            registerMaaTaskMapping(instanceId, maaTaskId, enabledTasks[index].id);
+            const taskDisplayName = enabledTasks[index].customName || enabledTasks[index].taskName;
+            registerTaskIdName(maaTaskId, taskDisplayName);
+          }
+        });
+        
+        // 第一个任务设为 running
+        if (enabledTasks.length > 0) {
+          setTaskRunStatus(instanceId, enabledTasks[0].id, 'running');
+        }
+        
+        // 设置任务队列
+        runningInstanceIdRef.current = instanceId;
+        setPendingTaskIds(instanceId, taskIds);
+        setCurrentTaskIndex(instanceId, 0);
+        setInstanceCurrentTaskId(instanceId, taskIds[0]);
+        setIsStarting(false);
+      } catch (err) {
+        log.error(`[${instanceName}] 任务启动异常:`, err);
+        if (projectInterface?.agent) {
+          try {
+            await maaService.stopAgent(instanceId);
+          } catch {
+            // 忽略
+          }
+        }
+        updateInstance(instanceId, { isRunning: false });
+        setInstanceTaskStatus(instanceId, 'Failed');
+        clearTaskRunStatus(instanceId);
+        clearPendingTasks(instanceId);
+        setIsStarting(false);
+      }
+    }
+  }, [
+    instance, instanceId, instanceName, isRunning, canRun, enabledTasks,
+    projectInterface, basePath, updateInstance, setInstanceTaskStatus,
+    setInstanceCurrentTaskId, clearTaskRunStatus, clearPendingTasks,
+    setAllTasksRunStatus, registerMaaTaskMapping, setTaskRunStatus,
+    setPendingTaskIds, setCurrentTaskIndex, registerTaskIdName, registerEntryTaskName,
+  ]);
+
   // 获取截图
   const captureFrame = useCallback(async (): Promise<string | null> => {
     if (!instanceId) return null;
@@ -191,25 +336,6 @@ function InstanceCard({
       await new Promise((resolve) => setTimeout(resolve, 50));
     }
   }, [instanceId, captureFrame]);
-
-  // 切换截图流
-  const toggleStreaming = useCallback(
-    (e: React.MouseEvent) => {
-      e.stopPropagation();
-
-      if (!instanceId || !isConnected) return;
-
-      if (isStreaming) {
-        streamingRef.current = false;
-        setInstanceScreenshotStreaming(instanceId, false);
-      } else {
-        streamingRef.current = true;
-        setInstanceScreenshotStreaming(instanceId, true);
-        streamLoop();
-      }
-    },
-    [instanceId, isConnected, isStreaming, setInstanceScreenshotStreaming, streamLoop]
-  );
 
   // 组件卸载时停止流
   useEffect(() => {
@@ -455,18 +581,41 @@ function InstanceCard({
           </div>
         )}
 
-        {/* 流控制按钮 */}
+        {/* 任务控制按钮 */}
         {isConnected && (
           <button
-            onClick={toggleStreaming}
+            onClick={handleStartStop}
+            disabled={isStarting || isStopping || (!canRun && !isRunning)}
             className={clsx(
               'absolute bottom-2 right-2 p-1.5 rounded-md transition-all',
-              'bg-black/50 hover:bg-black/70 text-white',
+              isStarting || isStopping
+                ? 'bg-yellow-500/80 text-white'
+                : isRunning
+                ? 'bg-red-500/80 hover:bg-red-600/80 text-white'
+                : canRun
+                ? 'bg-green-500/80 hover:bg-green-600/80 text-white'
+                : 'bg-black/30 text-white/50 cursor-not-allowed',
               'opacity-0 group-hover:opacity-100'
             )}
-            title={isStreaming ? t('screenshot.stopStream') : t('screenshot.startStream')}
+            title={
+              isStarting
+                ? t('taskList.startingTasks')
+                : isStopping
+                ? t('taskList.stoppingTasks')
+                : isRunning
+                ? t('taskList.stopTasks')
+                : canRun
+                ? t('taskList.startTasks')
+                : t('dashboard.noEnabledTasks')
+            }
           >
-            {isStreaming ? <Pause className="w-3 h-3" /> : <Play className="w-3 h-3" />}
+            {isStarting || isStopping ? (
+              <Loader2 className="w-3 h-3 animate-spin" />
+            ) : isRunning ? (
+              <StopCircle className="w-3 h-3" />
+            ) : (
+              <Play className="w-3 h-3" />
+            )}
           </button>
         )}
       </div>

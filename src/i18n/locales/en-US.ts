@@ -243,6 +243,7 @@ export default {
     running: 'Running',
     succeeded: 'Succeeded',
     failed: 'Failed',
+    noEnabledTasks: 'No enabled tasks',
   },
 
   // Recently Closed
