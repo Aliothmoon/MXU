@@ -205,7 +205,7 @@ jobs:
       - name: Prepare artifacts
         run: |
           mkdir -p install
-          cp -r src-tauri/target/${{ matrix.arch == 'x86_64' && 'x86_64-apple-darwin' || 'aarch64-apple-darwin' }}/release/bundle/macos/*.app install/ || true
+          cp -r src-tauri/target/${{ matrix.arch == 'x86_64' && 'x86_64-apple-darwin' || 'aarch64-apple-darwin' }}/release/bundle/macos/mxu.app install/ || true
           ls -la install/
 
       - name: Upload artifacts

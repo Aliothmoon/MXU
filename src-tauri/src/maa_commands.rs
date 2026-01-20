@@ -17,7 +17,7 @@ use tauri::State;
 use crate::maa_ffi::{
     emit_agent_output, from_cstr, get_event_callback, get_maa_version, init_maa_library, to_cstring,
     MaaAgentClient, MaaController, MaaImageBuffer, MaaLibrary, MaaResource, MaaTasker,
-    MaaToolkitAdbDeviceList, MaaToolkitDesktopWindowList,
+    MaaToolkitAdbDeviceList, MaaToolkitDesktopWindowList, SendPtr,
     MAA_CTRL_OPTION_SCREENSHOT_TARGET_SHORT_SIDE, MAA_GAMEPAD_TYPE_DUALSHOCK4,
     MAA_GAMEPAD_TYPE_XBOX360, MAA_INVALID_ID, MAA_LIBRARY, MAA_STATUS_PENDING,
     MAA_STATUS_RUNNING, MAA_STATUS_SUCCEEDED, MAA_WIN32_SCREENCAP_DXGI_DESKTOPDUP,
@@ -1155,11 +1155,11 @@ pub async fn maa_start_tasks(
         cwd
     );
 
-    let guard = MAA_LIBRARY.lock().map_err(|e: std::sync::PoisonError<_>| e.to_string())?;
-    let lib = guard.as_ref().ok_or("MaaFramework not initialized")?;
+    // 使用 SendPtr 包装原始指针，以便跨越 await 边界
+    let (resource, tasker) = {
+        let guard = MAA_LIBRARY.lock().map_err(|e: std::sync::PoisonError<_>| e.to_string())?;
+        let lib = guard.as_ref().ok_or("MaaFramework not initialized")?;
 
-    // 获取实例资源和控制器
-    let (resource, _controller, tasker) = {
         let mut instances = state.instances.lock().map_err(|e: std::sync::PoisonError<_>| e.to_string())?;
         let instance = instances.get_mut(&instance_id).ok_or("Instance not found")?;
 
@@ -1188,42 +1188,50 @@ pub async fn maa_start_tasks(
             instance.tasker = Some(tasker);
         }
 
-        (resource, controller, instance.tasker.unwrap())
+        (SendPtr::new(resource), SendPtr::new(instance.tasker.unwrap()))
     };
 
     // 启动 Agent（如果配置了）
-    if let Some(agent) = &agent_config {
+    // agent_client 用 SendPtr 包装，可跨 await 边界
+    let agent_client: Option<SendPtr<MaaAgentClient>> = if let Some(agent) = &agent_config {
         info!("Starting agent: {:?}", agent);
 
-        // 创建 AgentClient
-        let agent_client = unsafe { (lib.maa_agent_client_create_v2)(std::ptr::null()) };
-        if agent_client.is_null() {
-            return Err("Failed to create agent client".to_string());
-        }
+        // 创建 AgentClient 并获取 socket_id（在 guard 作用域内完成同步操作）
+        let (agent_client, socket_id) = {
+            let guard = MAA_LIBRARY.lock().map_err(|e: std::sync::PoisonError<_>| e.to_string())?;
+            let lib = guard.as_ref().ok_or("MaaFramework not initialized")?;
 
-        // 绑定资源
-        unsafe {
-            (lib.maa_agent_client_bind_resource)(agent_client, resource);
-        }
-
-        // 获取 socket identifier
-        let socket_id = unsafe {
-            let id_buffer = (lib.maa_string_buffer_create)();
-            if id_buffer.is_null() {
-                (lib.maa_agent_client_destroy)(agent_client);
-                return Err("Failed to create string buffer".to_string());
+            let agent_client = unsafe { (lib.maa_agent_client_create_v2)(std::ptr::null()) };
+            if agent_client.is_null() {
+                return Err("Failed to create agent client".to_string());
             }
 
-            let success = (lib.maa_agent_client_identifier)(agent_client, id_buffer);
-            if success == 0 {
+            // 绑定资源
+            unsafe {
+                (lib.maa_agent_client_bind_resource)(agent_client, resource.as_ptr());
+            }
+
+            // 获取 socket identifier
+            let socket_id = unsafe {
+                let id_buffer = (lib.maa_string_buffer_create)();
+                if id_buffer.is_null() {
+                    (lib.maa_agent_client_destroy)(agent_client);
+                    return Err("Failed to create string buffer".to_string());
+                }
+
+                let success = (lib.maa_agent_client_identifier)(agent_client, id_buffer);
+                if success == 0 {
+                    (lib.maa_string_buffer_destroy)(id_buffer);
+                    (lib.maa_agent_client_destroy)(agent_client);
+                    return Err("Failed to get agent identifier".to_string());
+                }
+
+                let id = from_cstr((lib.maa_string_buffer_get)(id_buffer));
                 (lib.maa_string_buffer_destroy)(id_buffer);
-                (lib.maa_agent_client_destroy)(agent_client);
-                return Err("Failed to get agent identifier".to_string());
-            }
+                id
+            };
 
-            let id = from_cstr((lib.maa_string_buffer_get)(id_buffer));
-            (lib.maa_string_buffer_destroy)(id_buffer);
-            id
+            (SendPtr::new(agent_client), socket_id)
         };
 
         info!("Agent socket_id: {}", socket_id);
@@ -1367,22 +1375,40 @@ pub async fn maa_start_tasks(
             });
         }
 
-        // 设置连接超时（-1 表示无限等待）
+        // 设置连接超时并获取 connect 函数指针（在 guard 作用域内）
         let timeout_ms = agent.timeout.unwrap_or(-1);
-        info!("Setting agent connect timeout: {} ms", timeout_ms);
-        unsafe {
-            (lib.maa_agent_client_set_timeout)(agent_client, timeout_ms);
-        }
+        let connect_fn = {
+            let guard = MAA_LIBRARY.lock().map_err(|e: std::sync::PoisonError<_>| e.to_string())?;
+            let lib = guard.as_ref().ok_or("MaaFramework not initialized")?;
+            
+            info!("Setting agent connect timeout: {} ms", timeout_ms);
+            unsafe {
+                (lib.maa_agent_client_set_timeout)(agent_client.as_ptr(), timeout_ms);
+            }
+            lib.maa_agent_client_connect
+        };
 
-        // 等待连接
-        let connected = unsafe { (lib.maa_agent_client_connect)(agent_client) };
+        // 等待连接（在独立线程池中执行，避免阻塞 UI 线程）
+        let agent_ptr = agent_client.as_ptr() as usize;
+
+        info!("Waiting for agent connection (non-blocking)...");
+        let connected = tokio::task::spawn_blocking(move || unsafe {
+            connect_fn(agent_ptr as *mut MaaAgentClient)
+        })
+        .await
+        .map_err(|e| format!("Agent connect task panicked: {}", e))?;
+
         if connected == 0 {
+            // 连接失败，清理资源
+            let guard = MAA_LIBRARY.lock().map_err(|e: std::sync::PoisonError<_>| e.to_string())?;
+            let lib = guard.as_ref().ok_or("MaaFramework not initialized")?;
+            
             let mut instances = state.instances.lock().map_err(|e: std::sync::PoisonError<_>| e.to_string())?;
             if let Some(instance) = instances.get_mut(&instance_id) {
                 instance.agent_child = Some(child);
             }
             unsafe {
-                (lib.maa_agent_client_destroy)(agent_client);
+                (lib.maa_agent_client_destroy)(agent_client.as_ptr());
             }
             return Err("Failed to connect to agent".to_string());
         }
@@ -1393,14 +1419,21 @@ pub async fn maa_start_tasks(
         {
             let mut instances = state.instances.lock().map_err(|e: std::sync::PoisonError<_>| e.to_string())?;
             if let Some(instance) = instances.get_mut(&instance_id) {
-                instance.agent_client = Some(agent_client);
+                instance.agent_client = Some(agent_client.as_ptr());
                 instance.agent_child = Some(child);
             }
         }
-    }
+        
+        Some(agent_client)
+    } else {
+        None
+    };
 
-    // 检查初始化状态
-    let inited = unsafe { (lib.maa_tasker_inited)(tasker) };
+    // 检查初始化状态并提交任务（重新获取 guard）
+    let guard = MAA_LIBRARY.lock().map_err(|e: std::sync::PoisonError<_>| e.to_string())?;
+    let lib = guard.as_ref().ok_or("MaaFramework not initialized")?;
+
+    let inited = unsafe { (lib.maa_tasker_inited)(tasker.as_ptr()) };
     if inited == 0 {
         return Err("Tasker not properly initialized".to_string());
     }
@@ -1412,7 +1445,7 @@ pub async fn maa_start_tasks(
         let override_c = to_cstring(&task.pipeline_override);
 
         let task_id =
-            unsafe { (lib.maa_tasker_post_task)(tasker, entry_c.as_ptr(), override_c.as_ptr()) };
+            unsafe { (lib.maa_tasker_post_task)(tasker.as_ptr(), entry_c.as_ptr(), override_c.as_ptr()) };
 
         if task_id == MAA_INVALID_ID {
             warn!("Failed to post task: {}", task.entry);
@@ -1423,12 +1456,20 @@ pub async fn maa_start_tasks(
         task_ids.push(task_id);
     }
 
+    // 释放 guard 后再访问 instances
+    drop(guard);
+
     // 缓存 task_ids，用于刷新后恢复状态
     {
         let mut instances = state.instances.lock().map_err(|e: std::sync::PoisonError<_>| e.to_string())?;
         if let Some(instance) = instances.get_mut(&instance_id) {
             instance.task_ids = task_ids.clone();
         }
+    }
+    
+    // agent_client 用于表示是否启动了 agent（用于调试日志）
+    if agent_client.is_some() {
+        info!("Tasks started with agent");
     }
 
     Ok(task_ids)

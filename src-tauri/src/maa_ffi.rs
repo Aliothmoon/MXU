@@ -78,6 +78,28 @@ pub enum MaaToolkitDesktopWindowList {}
 pub enum MaaToolkitDesktopWindow {}
 pub enum MaaAgentClient {}
 
+/// MaaFramework 原始指针的 Send 包装器
+/// MaaFramework API 是线程安全的，可以安全地在线程间传递
+#[derive(Clone, Copy)]
+pub struct SendPtr<T>(pub *mut T);
+
+unsafe impl<T> Send for SendPtr<T> {}
+unsafe impl<T> Sync for SendPtr<T> {}
+
+impl<T> SendPtr<T> {
+    pub fn new(ptr: *mut T) -> Self {
+        SendPtr(ptr)
+    }
+    
+    pub fn as_ptr(&self) -> *mut T {
+        self.0
+    }
+    
+    pub fn is_null(&self) -> bool {
+        self.0.is_null()
+    }
+}
+
 // 回调类型
 pub type MaaEventCallback = Option<extern "C" fn(
     handle: *mut c_void,
