@@ -85,6 +85,10 @@ interface AppState {
   showAddTaskPanel: boolean;
   setShowAddTaskPanel: (show: boolean) => void;
   
+  // 最近添加的任务 ID（用于自动滚动和展开）
+  lastAddedTaskId: string | null;
+  clearLastAddedTaskId: () => void;
+  
   // 国际化文本解析
   resolveI18nText: (text: string | undefined, lang: string) => string;
   
@@ -524,12 +528,15 @@ export const useAppStore = create<AppState>()(
           ? initializeAllOptionValues(task.option, pi.option)
           : {};
         
+        // 判断新任务是否有选项（用于决定是否展开）
+        const hasOptions = !!(task.option && task.option.length > 0);
+        
         const newTask: SelectedTask = {
           id: generateId(),
           taskName: task.name,
           enabled: true,
           optionValues,
-          expanded: false,
+          expanded: hasOptions, // 有选项的任务自动展开
         };
         
         set((state) => ({
@@ -538,6 +545,7 @@ export const useAppStore = create<AppState>()(
               ? { ...i, selectedTasks: [...i.selectedTasks, newTask] }
               : i
           ),
+          lastAddedTaskId: newTask.id, // 记录最近添加的任务 ID
         }));
       },
       
@@ -812,6 +820,10 @@ export const useAppStore = create<AppState>()(
       // 全局 UI 状态
       showAddTaskPanel: false,
       setShowAddTaskPanel: (show) => set({ showAddTaskPanel: show }),
+      
+      // 最近添加的任务 ID
+      lastAddedTaskId: null,
+      clearLastAddedTaskId: () => set({ lastAddedTaskId: null }),
       
       // 国际化文本解析
       resolveI18nText: (text, lang) => {

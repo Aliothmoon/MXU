@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { useAppStore, type TaskRunStatus } from '@/stores/appStore';
 import { maaService } from '@/services/maaService';
+import { markdownToHtml, markdownToHtmlWithLocalImages } from '@/services/contentResolver';
 import { generateTaskPipelineOverride } from '@/utils';
 import { OptionEditor } from './OptionEditor';
 import { ContextMenu, useContextMenu, type MenuItem } from './ContextMenu';
@@ -78,6 +79,7 @@ export function TaskItem({ instanceId, task }: TaskItemProps) {
   const { t } = useTranslation();
   const [isEditing, setIsEditing] = useState(false);
   const [editName, setEditName] = useState('');
+  const [taskDescriptionHtml, setTaskDescriptionHtml] = useState('');
   
   const {
     projectInterface,
@@ -97,6 +99,7 @@ export function TaskItem({ instanceId, task }: TaskItemProps) {
     instanceTaskRunStatus,
     instances,
     findMaaTaskIdBySelectedTaskId,
+    basePath,
   } = useAppStore();
   
   // 获取任务运行状态
@@ -174,9 +177,24 @@ export function TaskItem({ instanceId, task }: TaskItemProps) {
   };
 
   const taskDef = projectInterface?.task.find(t => t.name === task.taskName);
+  const langKey = language === 'zh-CN' ? 'zh_cn' : 'en_us';
+  
+  // 异步加载任务描述 HTML（支持本地图片）
+  useEffect(() => {
+    const description = taskDef?.description;
+    if (!description) {
+      setTaskDescriptionHtml('');
+      return;
+    }
+    const resolvedDesc = resolveI18nText(description, langKey) || '';
+    // 先显示不含本地图片的版本
+    setTaskDescriptionHtml(markdownToHtml(resolvedDesc));
+    // 异步加载本地图片
+    markdownToHtmlWithLocalImages(resolvedDesc, basePath).then(setTaskDescriptionHtml);
+  }, [taskDef?.description, langKey, basePath, resolveI18nText]);
+  
   if (!taskDef) return null;
 
-  const langKey = language === 'zh-CN' ? 'zh_cn' : 'en_us';
   const originalLabel = resolveI18nText(taskDef.label, langKey) || taskDef.name;
   const displayName = task.customName || originalLabel;
   const hasOptions = taskDef.option && taskDef.option.length > 0;
@@ -563,6 +581,13 @@ export function TaskItem({ instanceId, task }: TaskItemProps) {
       {/* 选项面板 */}
       {hasOptions && task.expanded && (
         <div className="border-t border-border bg-bg-tertiary p-3">
+          {/* 任务描述 */}
+          {taskDescriptionHtml && (
+            <div 
+              className="text-xs text-text-muted mb-3 [&_p]:my-0.5 [&_a]:text-accent [&_a]:hover:underline"
+              dangerouslySetInnerHTML={{ __html: taskDescriptionHtml }}
+            />
+          )}
           <div className="space-y-3">
             {taskDef.option?.map((optionKey) => (
               <OptionEditor

@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useCallback, useRef, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   DndContext,
@@ -36,11 +36,31 @@ export function TaskList() {
     collapseAllTasks,
     setShowAddTaskPanel,
     showAddTaskPanel,
+    lastAddedTaskId,
+    clearLastAddedTaskId,
   } = useAppStore();
 
   const instance = getActiveInstance();
   const isInstanceRunning = instance?.isRunning || false;
   const { state: menuState, show: showMenu, hide: hideMenu } = useContextMenu();
+  
+  // 滚动容器引用
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  
+  // 当添加新任务后自动滚动到底部
+  useEffect(() => {
+    if (lastAddedTaskId && scrollContainerRef.current) {
+      // 使用 requestAnimationFrame 确保 DOM 已更新
+      requestAnimationFrame(() => {
+        scrollContainerRef.current?.scrollTo({
+          top: scrollContainerRef.current.scrollHeight,
+          behavior: 'smooth',
+        });
+      });
+      // 清除标记，避免重复触发
+      clearLastAddedTaskId();
+    }
+  }, [lastAddedTaskId, clearLastAddedTaskId]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -160,7 +180,11 @@ export function TaskList() {
 
   return (
     <>
-      <div className="flex-1 overflow-y-auto overflow-x-hidden p-3" onContextMenu={handleListContextMenu}>
+      <div 
+        ref={scrollContainerRef}
+        className="flex-1 overflow-y-auto overflow-x-hidden p-3" 
+        onContextMenu={handleListContextMenu}
+      >
         <DndContext
           sensors={sensors}
           collisionDetection={closestCenter}

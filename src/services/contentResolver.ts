@@ -434,6 +434,58 @@ export function markdownToHtml(markdown: string): string {
 }
 
 /**
+ * 将 Markdown 转换为 HTML，并将相对路径图片转换为 data URL
+ * @param markdown Markdown 文本
+ * @param basePath 资源基础路径（用于解析相对路径图片）
+ * @returns 处理后的 HTML
+ */
+export async function markdownToHtmlWithLocalImages(
+  markdown: string,
+  basePath: string = ''
+): Promise<string> {
+  // 先转换为 HTML
+  let html = markdownToHtml(markdown);
+  
+  // 匹配 HTML 中的 img 标签的 src 属性
+  const imgRegex = /<img[^>]+src="([^"]+)"[^>]*>/g;
+  const matches = [...html.matchAll(imgRegex)];
+  
+  // 收集需要转换的相对路径图片
+  const imagePromises: Promise<{ original: string; dataUrl: string | null }>[] = [];
+  
+  for (const match of matches) {
+    const src = match[1];
+    // 跳过已经是 data URL 或 http(s) URL 的图片
+    if (src.startsWith('data:') || isUrl(src)) continue;
+    
+    imagePromises.push(
+      (async () => {
+        try {
+          const dataUrl = await loadIconAsDataUrl(src, basePath);
+          return { original: src, dataUrl: dataUrl || null };
+        } catch {
+          return { original: src, dataUrl: null };
+        }
+      })()
+    );
+  }
+  
+  // 等待所有图片加载完成
+  const results = await Promise.all(imagePromises);
+  
+  // 替换图片路径为 data URL
+  for (const { original, dataUrl } of results) {
+    if (dataUrl) {
+      // 转义正则特殊字符
+      const escapedSrc = original.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      html = html.replace(new RegExp(`src="${escapedSrc}"`, 'g'), `src="${dataUrl}"`);
+    }
+  }
+  
+  return html;
+}
+
+/**
  * @deprecated 请使用 markdownToHtml
  */
 export const simpleMarkdownToHtml = markdownToHtml;

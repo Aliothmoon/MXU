@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useAppStore } from '@/stores/appStore';
-import { loadIconAsDataUrl } from '@/services/contentResolver';
+import { loadIconAsDataUrl, markdownToHtml, markdownToHtmlWithLocalImages } from '@/services/contentResolver';
 import type { OptionValue, CaseItem, InputItem } from '@/types/interface';
 import clsx from 'clsx';
 import { Info, AlertCircle } from 'lucide-react';
@@ -32,39 +32,46 @@ interface OptionEditorProps {
   disabled?: boolean;
 }
 
-/** 显示带图标和描述的标签 */
+/** 显示带图标的标签（仅标签本身） */
 function OptionLabel({
   label,
   icon,
-  description,
   basePath,
 }: {
   label: string;
   icon?: string;
-  description?: string;
   basePath: string;
 }) {
-  const [showTooltip, setShowTooltip] = useState(false);
-
   return (
     <div className="flex items-center gap-1.5 min-w-[80px]">
       <AsyncIcon icon={icon} basePath={basePath} className="w-4 h-4 object-contain flex-shrink-0" />
       <span className="text-sm text-text-secondary">{label}</span>
-      {description && (
-        <div className="relative">
-          <Info
-            className="w-3.5 h-3.5 text-text-muted cursor-help flex-shrink-0"
-            onMouseEnter={() => setShowTooltip(true)}
-            onMouseLeave={() => setShowTooltip(false)}
-          />
-          {showTooltip && (
-            <div className="absolute left-0 bottom-full mb-1 z-50 px-2 py-1 text-xs bg-bg-primary border border-border rounded shadow-lg w-max max-w-[200px] whitespace-pre-wrap">
-              {description}
-            </div>
-          )}
-        </div>
-      )}
     </div>
+  );
+}
+
+/** 显示选项描述文本（支持 Markdown/HTML，包括本地图片） */
+function OptionDescription({ description, basePath }: { description?: string; basePath: string }) {
+  const [html, setHtml] = useState<string>('');
+  
+  useEffect(() => {
+    if (!description) {
+      setHtml('');
+      return;
+    }
+    // 先显示不含本地图片的版本
+    setHtml(markdownToHtml(description));
+    // 异步加载本地图片
+    markdownToHtmlWithLocalImages(description, basePath).then(setHtml);
+  }, [description, basePath]);
+  
+  if (!description) return null;
+  
+  return (
+    <div 
+      className="text-xs text-text-muted [&_p]:my-0.5 [&_a]:text-accent [&_a]:hover:underline"
+      dangerouslySetInnerHTML={{ __html: html }}
+    />
   );
 }
 
@@ -195,7 +202,6 @@ export function OptionEditor({ instanceId, taskId, optionKey, value, depth = 0, 
           <OptionLabel
             label={optionLabel}
             icon={optionDef.icon}
-            description={optionDescription}
             basePath={basePath}
           />
           <button
@@ -221,6 +227,7 @@ export function OptionEditor({ instanceId, taskId, optionKey, value, depth = 0, 
             />
           </button>
         </div>
+        <OptionDescription description={optionDescription} basePath={basePath} />
         {/* 渲染嵌套选项 */}
         {nestedOptionKeys.length > 0 && (
           <div className="space-y-2">
@@ -253,9 +260,9 @@ export function OptionEditor({ instanceId, taskId, optionKey, value, depth = 0, 
         <OptionLabel
           label={optionLabel}
           icon={optionDef.icon}
-          description={optionDescription}
           basePath={basePath}
         />
+        <OptionDescription description={optionDescription} basePath={basePath} />
         {optionDef.inputs.map((input) => {
           const inputValue = inputValues[input.name] ?? input.default ?? '';
 
@@ -291,7 +298,6 @@ export function OptionEditor({ instanceId, taskId, optionKey, value, depth = 0, 
         <OptionLabel
           label={optionLabel}
           icon={optionDef.icon}
-          description={optionDescription}
           basePath={basePath}
         />
         <select
@@ -321,6 +327,7 @@ export function OptionEditor({ instanceId, taskId, optionKey, value, depth = 0, 
           })}
         </select>
       </div>
+      <OptionDescription description={optionDescription} basePath={basePath} />
       {/* 渲染嵌套选项 */}
       {nestedOptionKeys.length > 0 && (
         <div className="space-y-2">
