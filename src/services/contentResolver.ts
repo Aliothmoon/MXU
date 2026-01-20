@@ -11,6 +11,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { loggers } from '@/utils/logger';
 import { marked } from 'marked';
 import DOMPurify from 'dompurify';
+import { cachedFetch } from './cacheService';
 
 const log = loggers.app;
 
@@ -109,14 +110,16 @@ async function loadFromFile(filePath: string, basePath: string): Promise<string>
 }
 
 /**
- * 从 URL 加载内容
+ * 从 URL 加载内容（带 ETag 缓存）
+ * @param url 请求的 URL
+ * @param basePath 资源基础路径（用于存储缓存文件）
  */
-async function loadFromUrl(url: string): Promise<string> {
-  const response = await fetch(url);
-  if (!response.ok) {
-    throw new Error(`HTTP ${response.status}`);
+async function loadFromUrl(url: string, basePath: string = '.'): Promise<string> {
+  const result = await cachedFetch(url, { basePath });
+  if (result.fromCache) {
+    log.debug(`URL 内容来自缓存: ${url}`);
   }
-  return await response.text();
+  return result.data;
 }
 
 /**
@@ -249,7 +252,7 @@ export async function resolveContent(
   try {
     // 检查是否为 URL
     if (isUrl(resolved)) {
-      resolved = await loadFromUrl(resolved);
+      resolved = await loadFromUrl(resolved, basePath);
     }
     // 检查是否为文件路径
     else if (isFilePath(resolved)) {
@@ -300,7 +303,7 @@ export async function resolveDescriptionContent(
     let loadedContent: string;
     
     if (type === 'url') {
-      loadedContent = await loadFromUrl(resolved);
+      loadedContent = await loadFromUrl(resolved, basePath);
     } else {
       // 文件路径：相对于 interface.json 所在目录
       loadedContent = await loadFromFile(resolved, basePath);

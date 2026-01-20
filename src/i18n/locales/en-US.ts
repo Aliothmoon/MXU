@@ -243,6 +243,9 @@ export default {
     resetWindowSize: 'Reset Window Size',
     openConfigDir: 'Open Config Dir',
     openLogDir: 'Open Log Dir',
+    clearCache: 'Clear Cache',
+    cacheCleared: 'Cache cleared',
+    cacheStats: 'Cache entries: {{count}}',
   },
 
   // Welcome dialog

@@ -21,8 +21,10 @@ import {
   PackageCheck,
   FolderOpen,
   ScrollText,
+  Trash2,
 } from 'lucide-react';
 import { checkAndPrepareDownload, openMirrorChyanWebsite, downloadUpdate, getUpdateSavePath, cancelDownload, MIRRORCHYAN_ERROR_CODES } from '@/services/updateService';
+import { clearAllCache, getCacheStats } from '@/services/cacheService';
 import type { DownloadProgress } from '@/stores/appStore';
 import { defaultWindowSize } from '@/types/config';
 import { useAppStore } from '@/stores/appStore';
@@ -394,6 +396,34 @@ export function SettingsPage() {
       await openPath(logPath);
     } catch (err) {
       console.error('打开日志目录失败:', err);
+    }
+  };
+
+  // 缓存统计信息
+  const [cacheEntryCount, setCacheEntryCount] = useState<number | null>(null);
+
+  // 加载缓存统计
+  useEffect(() => {
+    if (isTauri() && basePath) {
+      getCacheStats(basePath).then(stats => {
+        setCacheEntryCount(stats.entryCount);
+      });
+    }
+  }, [basePath]);
+
+  // 调试：清空缓存
+  const handleClearCache = async () => {
+    if (!isTauri() || !basePath) {
+      addDebugLog('仅 Tauri 环境支持清空缓存');
+      return;
+    }
+
+    try {
+      await clearAllCache(basePath);
+      setCacheEntryCount(0);
+      addDebugLog('缓存已清空');
+    } catch (err) {
+      addDebugLog(`清空缓存失败: ${err}`);
     }
   };
 
@@ -813,6 +843,17 @@ export function SettingsPage() {
                 >
                   <ScrollText className="w-4 h-4" />
                   {t('debug.openLogDir')}
+                </button>
+                <button
+                  onClick={handleClearCache}
+                  className="flex items-center gap-2 px-3 py-2 text-sm bg-bg-tertiary hover:bg-bg-hover rounded-lg transition-colors"
+                  title={cacheEntryCount !== null ? t('debug.cacheStats', { count: cacheEntryCount }) : undefined}
+                >
+                  <Trash2 className="w-4 h-4" />
+                  {t('debug.clearCache')}
+                  {cacheEntryCount !== null && cacheEntryCount > 0 && (
+                    <span className="text-xs text-text-muted">({cacheEntryCount})</span>
+                  )}
                 </button>
               </div>
             </div>
