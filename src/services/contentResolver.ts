@@ -19,24 +19,63 @@ const isTauri = () => {
   return typeof window !== 'undefined' && '__TAURI__' in window;
 };
 
+/** 内容类型枚举 */
+export type ContentType = 'url' | 'file' | 'text';
+
 /**
  * 判断内容是否为 URL
  */
-function isUrl(content: string): boolean {
+export function isUrl(content: string): boolean {
   return content.startsWith('http://') || content.startsWith('https://');
 }
 
 /**
- * 判断内容是否为文件路径（简单判断：包含文件扩展名或以 ./ 开头）
+ * 判断内容是否可能为文件路径
+ * 根据 ProjectInterface V2 协议：支持文件路径、URL 或直接文本
+ * 
+ * 文件路径特征：
+ * 1. 以 ./ 或 ../ 开头
+ * 2. 包含常见文档扩展名（.md, .txt, .html 等）
+ * 3. 简单的文件名（无空格、无 HTML 标签、无换行，全大写或常见文件名格式）
  */
-function isFilePath(content: string): boolean {
+export function isFilePath(content: string): boolean {
   if (isUrl(content)) return false;
-  // 检查是否以 ./ 或 ../ 开头，或者包含常见文件扩展名
-  return (
-    content.startsWith('./') ||
-    content.startsWith('../') ||
-    /\.(md|txt|json|html)$/i.test(content)
-  );
+  
+  // 以 ./ 或 ../ 开头，明确是相对路径
+  if (content.startsWith('./') || content.startsWith('../')) return true;
+  
+  // 包含常见文档扩展名
+  if (/\.(md|txt|json|html|htm)$/i.test(content)) return true;
+  
+  // 简单文件名检测：
+  // - 不包含空格、换行、HTML 标签
+  // - 不是纯数字
+  // - 长度合理（1-100 字符）
+  // - 全大写或包含常见路径分隔符
+  const isSimpleName = /^[A-Za-z0-9_\-./\\]+$/.test(content) &&
+    content.length >= 1 &&
+    content.length <= 100 &&
+    !/^\d+$/.test(content) &&
+    !content.includes('<') &&
+    !content.includes('>');
+  
+  // 全大写的简单名称很可能是文件名（如 LICENSE, CONTACT, README）
+  if (isSimpleName && /^[A-Z][A-Z0-9_\-]*$/.test(content)) return true;
+  
+  // 包含路径分隔符的简单名称也可能是文件路径
+  if (isSimpleName && (content.includes('/') || content.includes('\\'))) return true;
+  
+  return false;
+}
+
+/**
+ * 检测内容类型
+ */
+export function detectContentType(content: string): ContentType {
+  if (!content) return 'text';
+  if (isUrl(content)) return 'url';
+  if (isFilePath(content)) return 'file';
+  return 'text';
 }
 
 /**
@@ -147,6 +186,18 @@ export interface ResolveOptions {
   loadExternal?: boolean;
 }
 
+/** 内容解析结果 */
+export interface ResolvedContent {
+  /** 解析后的内容 */
+  content: string;
+  /** 原始内容类型 */
+  type: ContentType;
+  /** 是否从外部加载成功 */
+  loaded: boolean;
+  /** 加载错误信息 */
+  error?: string;
+}
+
 /**
  * 解析国际化文本
  * 如果文本以 $ 开头，则从翻译表中查找对应的值
@@ -210,6 +261,58 @@ export async function resolveContent(
   }
   
   return resolved;
+}
+
+/**
+ * 解析描述类内容（异步版本，返回详细结果）
+ * 根据 ProjectInterface V2 协议，description 等字段支持：
+ * - 文件路径（相对于 interface.json 所在目录）
+ * - URL（http:// 或 https://）
+ * - 直接文本
+ * 
+ * @param content 原始内容
+ * @param options 解析选项
+ * @returns 解析结果，包含内容、类型和加载状态
+ */
+export async function resolveDescriptionContent(
+  content: string | undefined,
+  options: ResolveOptions = {}
+): Promise<ResolvedContent> {
+  if (!content) {
+    return { content: '', type: 'text', loaded: false };
+  }
+  
+  const { translations, basePath = '' } = options;
+  
+  // 先处理国际化
+  const resolved = resolveI18nText(content, translations);
+  
+  // 检测内容类型
+  const type = detectContentType(resolved);
+  
+  // 如果是直接文本，直接返回
+  if (type === 'text') {
+    return { content: resolved, type, loaded: false };
+  }
+  
+  // 尝试加载外部内容
+  try {
+    let loadedContent: string;
+    
+    if (type === 'url') {
+      loadedContent = await loadFromUrl(resolved);
+    } else {
+      // 文件路径：相对于 interface.json 所在目录
+      loadedContent = await loadFromFile(resolved, basePath);
+    }
+    
+    return { content: loadedContent, type, loaded: true };
+  } catch (err) {
+    const errorMsg = err instanceof Error ? err.message : String(err);
+    log.warn(`加载描述内容失败 [${type}: ${resolved}]:`, err);
+    // 加载失败时返回原始文本，并附带错误信息
+    return { content: resolved, type, loaded: false, error: errorMsg };
+  }
 }
 
 /**
@@ -489,3 +592,108 @@ export async function markdownToHtmlWithLocalImages(
  * @deprecated 请使用 markdownToHtml
  */
 export const simpleMarkdownToHtml = markdownToHtml;
+
+// ============================================================================
+// React Hooks
+// ============================================================================
+
+import { useState, useEffect } from 'react';
+
+/** useResolvedContent Hook 的返回值 */
+export interface UseResolvedContentResult {
+  /** 解析后的内容 */
+  content: string;
+  /** 转换为 HTML 后的内容（支持 Markdown） */
+  html: string;
+  /** 是否正在加载 */
+  loading: boolean;
+  /** 原始内容类型 */
+  type: ContentType;
+  /** 是否从外部成功加载 */
+  loaded: boolean;
+  /** 错误信息 */
+  error?: string;
+}
+
+/**
+ * React Hook: 解析 description 等支持文件/URL 的字段
+ * 
+ * @param content 原始内容（可能是文件路径、URL 或直接文本）
+ * @param basePath 资源基础路径（相对路径基于此目录）
+ * @param translations 翻译表（用于国际化文本）
+ */
+export function useResolvedContent(
+  content: string | undefined,
+  basePath: string = '',
+  translations?: Record<string, string>
+): UseResolvedContentResult {
+  const [result, setResult] = useState<UseResolvedContentResult>({
+    content: '',
+    html: '',
+    loading: false,
+    type: 'text',
+    loaded: false,
+  });
+  
+  useEffect(() => {
+    if (!content) {
+      setResult({ content: '', html: '', loading: false, type: 'text', loaded: false });
+      return;
+    }
+    
+    // 先处理国际化
+    const resolvedI18n = resolveI18nText(content, translations);
+    const type = detectContentType(resolvedI18n);
+    
+    // 如果是直接文本，直接转换 HTML 并返回
+    if (type === 'text') {
+      const html = markdownToHtml(resolvedI18n);
+      setResult({ content: resolvedI18n, html, loading: false, type, loaded: false });
+      return;
+    }
+    
+    // 需要异步加载
+    setResult(prev => ({ ...prev, loading: true, type }));
+    
+    let cancelled = false;
+    
+    (async () => {
+      const resolved = await resolveDescriptionContent(content, { translations, basePath });
+      
+      if (cancelled) return;
+      
+      // 异步加载本地图片的 HTML
+      const html = await markdownToHtmlWithLocalImages(resolved.content, basePath);
+      
+      if (cancelled) return;
+      
+      setResult({
+        content: resolved.content,
+        html,
+        loading: false,
+        type: resolved.type,
+        loaded: resolved.loaded,
+        error: resolved.error,
+      });
+    })();
+    
+    return () => {
+      cancelled = true;
+    };
+  }, [content, basePath, translations]);
+  
+  return result;
+}
+
+/**
+ * React Hook: 解析 description 并返回 HTML（简化版本）
+ * 用于只需要 HTML 结果的场景
+ */
+export function useDescriptionHtml(
+  description: string | undefined,
+  basePath: string = '',
+  translations?: Record<string, string>
+): { html: string; loading: boolean; error?: string } {
+  const result = useResolvedContent(description, basePath, translations);
+  return { html: result.html, loading: result.loading, error: result.error };
+}

@@ -21,6 +21,7 @@ import clsx from 'clsx';
 import { useAppStore } from '@/stores/appStore';
 import { maaService } from '@/services/maaService';
 import { ContextMenu, useContextMenu, type MenuItem } from './ContextMenu';
+import { FrameRateSelector, getFrameInterval } from './FrameRateSelector';
 import { resolveI18nText } from '@/services/contentResolver';
 import { loggers, generateTaskPipelineOverride } from '@/utils';
 import type { TaskConfig, AgentConfig } from '@/types/maa';
@@ -70,6 +71,7 @@ function InstanceCard({
     basePath,
     registerTaskIdName,
     registerEntryTaskName,
+    screenshotFrameRate,
   } = useAppStore();
   
   const langKey = language === 'zh-CN' ? 'zh_cn' : 'en_us';
@@ -83,8 +85,13 @@ function InstanceCard({
   const [isStopping, setIsStopping] = useState(false);
   const streamingRef = useRef(false);
   const lastFrameTimeRef = useRef(0);
-  const frameIntervalRef = useRef(1000 / 3); // 中控台使用更低的帧率节省资源
+  const frameIntervalRef = useRef(getFrameInterval(screenshotFrameRate));
   const runningInstanceIdRef = useRef<string | null>(null);
+  
+  // 帧率配置变化时更新帧间隔
+  useEffect(() => {
+    frameIntervalRef.current = getFrameInterval(screenshotFrameRate);
+  }, [screenshotFrameRate]);
 
   const connectionStatus = instanceConnectionStatus[instanceId];
   const taskStatus = instanceTaskStatus[instanceId];
@@ -313,13 +320,28 @@ function InstanceCard({
 
   // 截图流循环
   const streamLoop = useCallback(async () => {
+    // 初始化下一帧时间
+    let nextFrameTime = Date.now();
+    
     while (streamingRef.current) {
+      // 计算需要等待的时间（sleep until 下一帧时间点）
       const now = Date.now();
-      const elapsed = now - lastFrameTimeRef.current;
-
-      if (elapsed < frameIntervalRef.current) {
-        await new Promise((resolve) => setTimeout(resolve, frameIntervalRef.current - elapsed));
-        continue;
+      const sleepTime = nextFrameTime - now;
+      if (sleepTime > 0) {
+        await new Promise((resolve) => setTimeout(resolve, sleepTime));
+      }
+      
+      // 计算下一帧时间
+      const frameInterval = frameIntervalRef.current;
+      if (frameInterval > 0) {
+        nextFrameTime += frameInterval;
+        // 如果已经落后太多，重置到当前时间
+        if (nextFrameTime < Date.now()) {
+          nextFrameTime = Date.now() + frameInterval;
+        }
+      } else {
+        // unlimited 模式，立即执行下一帧
+        nextFrameTime = Date.now();
       }
 
       lastFrameTimeRef.current = Date.now();
@@ -332,8 +354,6 @@ function InstanceCard({
       } catch {
         // 静默处理
       }
-
-      await new Promise((resolve) => setTimeout(resolve, 50));
     }
   }, [instanceId, captureFrame]);
 
@@ -824,12 +844,15 @@ export function DashboardView() {
             {instances.length} {t('dashboard.instances')}
           </span>
         </div>
-        <button
-          onClick={toggleDashboardView}
-          className="px-3 py-1.5 text-sm bg-bg-hover hover:bg-bg-active text-text-secondary rounded-lg transition-colors"
-        >
-          {t('dashboard.exit')}
-        </button>
+        <div className="flex items-center gap-4">
+          <FrameRateSelector compact />
+          <button
+            onClick={toggleDashboardView}
+            className="px-3 py-1.5 text-sm bg-bg-hover hover:bg-bg-active text-text-secondary rounded-lg transition-colors"
+          >
+            {t('dashboard.exit')}
+          </button>
+        </div>
       </div>
     </div>
   );

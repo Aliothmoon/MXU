@@ -1,8 +1,8 @@
 import { create } from 'zustand';
 import { subscribeWithSelector } from 'zustand/middleware';
 import type { ProjectInterface, Instance, SelectedTask, OptionValue, TaskItem, OptionDefinition, SavedDeviceInfo } from '@/types/interface';
-import type { MxuConfig, WindowSize, UpdateChannel, MirrorChyanSettings, RecentlyClosedInstance } from '@/types/config';
-import { defaultWindowSize, defaultMirrorChyanSettings } from '@/types/config';
+import type { MxuConfig, WindowSize, UpdateChannel, MirrorChyanSettings, RecentlyClosedInstance, ScreenshotFrameRate } from '@/types/config';
+import { defaultWindowSize, defaultMirrorChyanSettings, defaultScreenshotFrameRate } from '@/types/config';
 
 // 最近关闭列表最大条目数
 const MAX_RECENTLY_CLOSED = 30;
@@ -171,6 +171,10 @@ interface AppState {
   // 任务选项预览显示设置
   showOptionPreview: boolean;
   setShowOptionPreview: (show: boolean) => void;
+  
+  // 实时截图帧率设置
+  screenshotFrameRate: ScreenshotFrameRate;
+  setScreenshotFrameRate: (rate: ScreenshotFrameRate) => void;
   
   // 更新检查状态
   updateInfo: UpdateInfo | null;
@@ -892,6 +896,7 @@ export const useAppStore = create<AppState>()(
           sidePanelExpanded: config.settings.sidePanelExpanded ?? true,
           connectionPanelExpanded: config.settings.connectionPanelExpanded ?? true,
           screenshotPanelExpanded: config.settings.screenshotPanelExpanded ?? true,
+          screenshotFrameRate: config.settings.screenshotFrameRate ?? defaultScreenshotFrameRate,
           recentlyClosed: config.recentlyClosed || [],
         });
         
@@ -1062,6 +1067,10 @@ export const useAppStore = create<AppState>()(
       // 任务选项预览显示设置
       showOptionPreview: true,
       setShowOptionPreview: (show) => set({ showOptionPreview: show }),
+      
+      // 实时截图帧率设置
+      screenshotFrameRate: defaultScreenshotFrameRate,
+      setScreenshotFrameRate: (rate) => set({ screenshotFrameRate: rate }),
       
       // 更新检查状态
       updateInfo: null,
@@ -1373,6 +1382,7 @@ function generateConfig(): MxuConfig {
       sidePanelExpanded: state.sidePanelExpanded,
       connectionPanelExpanded: state.connectionPanelExpanded,
       screenshotPanelExpanded: state.screenshotPanelExpanded,
+      screenshotFrameRate: state.screenshotFrameRate,
     },
     recentlyClosed: state.recentlyClosed,
   };
@@ -1406,6 +1416,7 @@ useAppStore.subscribe(
     sidePanelExpanded: state.sidePanelExpanded,
     connectionPanelExpanded: state.connectionPanelExpanded,
     screenshotPanelExpanded: state.screenshotPanelExpanded,
+    screenshotFrameRate: state.screenshotFrameRate,
     recentlyClosed: state.recentlyClosed,
   }),
   () => {

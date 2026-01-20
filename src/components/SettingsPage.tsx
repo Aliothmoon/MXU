@@ -20,6 +20,8 @@ import {
   AlertCircle,
   AlertTriangle,
   PackageCheck,
+  FolderOpen,
+  ScrollText,
 } from 'lucide-react';
 import { checkAndPrepareDownload, openMirrorChyanWebsite, downloadUpdate, getUpdateSavePath, cancelDownload, MIRRORCHYAN_ERROR_CODES } from '@/services/updateService';
 import type { DownloadProgress } from '@/stores/appStore';
@@ -29,6 +31,7 @@ import { setLanguage as setI18nLanguage } from '@/i18n';
 import { resolveContent, loadIconAsDataUrl, simpleMarkdownToHtml, resolveI18nText } from '@/services/contentResolver';
 import { maaService } from '@/services/maaService';
 import { ReleaseNotes, DownloadProgressBar } from './UpdateInfoCard';
+import { FrameRateSelector } from './FrameRateSelector';
 import clsx from 'clsx';
 
 // 检测是否在 Tauri 环境中
@@ -297,11 +300,6 @@ export function SettingsPage() {
     window.location.reload();
   };
 
-  // 调试：清空日志
-  const handleClearLog = () => {
-    setDebugLog([]);
-  };
-
   // 检查更新
   const handleCheckUpdate = async () => {
     if (!projectInterface?.mirrorchyan_rid || !projectInterface?.version) {
@@ -361,6 +359,42 @@ export function SettingsPage() {
       addDebugLog(`窗口尺寸已重置为 ${defaultWindowSize.width}x${defaultWindowSize.height}`);
     } catch (err) {
       addDebugLog(`重置窗口尺寸失败: ${err}`);
+    }
+  };
+
+  // 调试：打开配置目录
+  const handleOpenConfigDir = async () => {
+    if (!isTauri() || !basePath) {
+      console.warn('仅 Tauri 环境支持打开目录, basePath:', basePath);
+      return;
+    }
+
+    try {
+      const { openPath } = await import('@tauri-apps/plugin-opener');
+      const { join } = await import('@tauri-apps/api/path');
+      const configPath = await join(basePath, 'config');
+      console.log('打开配置目录:', configPath);
+      await openPath(configPath);
+    } catch (err) {
+      console.error('打开配置目录失败:', err);
+    }
+  };
+
+  // 调试：打开日志目录
+  const handleOpenLogDir = async () => {
+    if (!isTauri() || !basePath) {
+      console.warn('仅 Tauri 环境支持打开目录, basePath:', basePath);
+      return;
+    }
+
+    try {
+      const { openPath } = await import('@tauri-apps/plugin-opener');
+      const { join } = await import('@tauri-apps/api/path');
+      const logPath = await join(basePath, 'debug');
+      console.log('打开日志目录:', logPath);
+      await openPath(logPath);
+    } catch (err) {
+      console.error('打开日志目录失败:', err);
     }
   };
 
@@ -496,6 +530,9 @@ export function SettingsPage() {
                 </button>
               </div>
             </div>
+
+            {/* 实时截图帧率 */}
+            <FrameRateSelector />
           </section>
 
           {/* MirrorChyan 更新设置 */}
@@ -740,7 +777,7 @@ export function SettingsPage() {
               {/* 版本信息 */}
               <div className="text-sm text-text-secondary space-y-1">
                 <p className="font-medium text-text-primary">{t('debug.versions')}</p>
-                <p>{t('debug.interfaceVersion')}: <span className="font-mono text-text-primary">{version || '-'}</span></p>
+                <p>{t('debug.interfaceVersion', { name: projectInterface?.name || 'interface' })}: <span className="font-mono text-text-primary">{version || '-'}</span></p>
                 <p>{t('debug.maafwVersion')}: <span className="font-mono text-text-primary">{maafwVersion || t('maa.notInitialized')}</span></p>
                 <p>{t('debug.mxuVersion')}: <span className="font-mono text-text-primary">{mxuVersion || '-'}</span></p>
               </div>
@@ -757,31 +794,30 @@ export function SettingsPage() {
                   className="flex items-center gap-2 px-3 py-2 text-sm bg-bg-tertiary hover:bg-bg-hover rounded-lg transition-colors"
                 >
                   <RefreshCw className="w-4 h-4" />
-                  刷新 UI
+                  {t('debug.refreshUI')}
                 </button>
                 <button
                   onClick={handleResetWindowSize}
                   className="flex items-center gap-2 px-3 py-2 text-sm bg-bg-tertiary hover:bg-bg-hover rounded-lg transition-colors"
                 >
                   <Maximize2 className="w-4 h-4" />
-                  重置窗口尺寸
+                  {t('debug.resetWindowSize')}
                 </button>
                 <button
-                  onClick={handleClearLog}
+                  onClick={handleOpenConfigDir}
                   className="flex items-center gap-2 px-3 py-2 text-sm bg-bg-tertiary hover:bg-bg-hover rounded-lg transition-colors"
                 >
-                  清空日志
+                  <FolderOpen className="w-4 h-4" />
+                  {t('debug.openConfigDir')}
+                </button>
+                <button
+                  onClick={handleOpenLogDir}
+                  className="flex items-center gap-2 px-3 py-2 text-sm bg-bg-tertiary hover:bg-bg-hover rounded-lg transition-colors"
+                >
+                  <ScrollText className="w-4 h-4" />
+                  {t('debug.openLogDir')}
                 </button>
               </div>
-              
-              {/* 调试日志 */}
-              {debugLog.length > 0 && (
-                <div className="bg-bg-tertiary rounded-lg p-3 max-h-40 overflow-y-auto">
-                  <pre className="text-xs font-mono text-text-secondary whitespace-pre-wrap">
-                    {debugLog.join('\n')}
-                  </pre>
-                </div>
-              )}
             </div>
           </section>
 
@@ -836,21 +872,6 @@ export function SettingsPage() {
 
                   {/* 信息列表 */}
                   <div className="space-y-2">
-                    {/* 许可证 */}
-                    {resolvedContent.license && (
-                      <div className="px-4 py-3 rounded-lg bg-bg-tertiary">
-                        <div className="flex items-center gap-3 mb-2">
-                          <FileText className="w-5 h-5 text-text-muted flex-shrink-0" />
-                          <span className="text-sm font-medium text-text-primary">
-                            {t('about.license')}
-                          </span>
-                        </div>
-                        <div className="ml-8">
-                          {renderMarkdown(resolvedContent.license)}
-                        </div>
-                      </div>
-                    )}
-
                     {/* 联系方式 */}
                     {resolvedContent.contact && (
                       <div className="px-4 py-3 rounded-lg bg-bg-tertiary">
@@ -866,8 +887,24 @@ export function SettingsPage() {
                       </div>
                     )}
 
+                    
+                    {/* 许可证 */}
+                    {resolvedContent.license && (
+                      <div className="px-4 py-3 rounded-lg bg-bg-tertiary">
+                        <div className="flex items-center gap-3 mb-2">
+                          <FileText className="w-5 h-5 text-text-muted flex-shrink-0" />
+                          <span className="text-sm font-medium text-text-primary">
+                            {t('about.license')}
+                          </span>
+                        </div>
+                        <div className="ml-8">
+                          {renderMarkdown(resolvedContent.license)}
+                        </div>
+                      </div>
+                    )}
+
                     {/* GitHub */}
-                    {github && (
+                    {/* {github && (
                       <a
                         href={github}
                         target="_blank"
@@ -877,7 +914,8 @@ export function SettingsPage() {
                         <Github className="w-5 h-5 text-text-muted flex-shrink-0" />
                         <span className="text-sm text-accent truncate">{github}</span>
                       </a>
-                    )}
+                    )} */}
+                    
                   </div>
                 </>
               )}
@@ -885,7 +923,14 @@ export function SettingsPage() {
               {/* 底部信息 */}
               <div className="text-center pt-4 mt-4 border-t border-border">
                 <p className="text-xs text-text-muted">
-                  Powered by MaaFramework & Tauri
+                  Powered by{' '}
+                  <a href="https://maafw.xyz" target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">
+                    MaaFramework
+                  </a>
+                  {' & '}
+                  <a href="https://github.com/MistEO/MXU" target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">
+                    MXU
+                  </a>
                 </p>
               </div>
             </div>

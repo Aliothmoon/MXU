@@ -69,6 +69,9 @@ export interface RecentlyClosedInstance {
 // MirrorChyan 更新频道
 export type UpdateChannel = 'stable' | 'beta';
 
+// 截图帧率类型
+export type ScreenshotFrameRate = 'unlimited' | '5' | '1' | '0.2' | '0.033';
+
 // MirrorChyan 设置
 export interface MirrorChyanSettings {
   cdk: string;           // MirrorChyan CDK
@@ -85,6 +88,7 @@ export interface AppSettings {
   sidePanelExpanded?: boolean;  // 右侧面板是否展开（连接+截图）
   connectionPanelExpanded?: boolean; // 连接设置卡片是否展开
   screenshotPanelExpanded?: boolean; // 实时截图卡片是否展开
+  screenshotFrameRate?: ScreenshotFrameRate; // 实时截图帧率
 }
 
 // MXU 配置文件完整结构
@@ -106,6 +110,9 @@ export const defaultMirrorChyanSettings: MirrorChyanSettings = {
   cdk: '',
   channel: 'stable',
 };
+
+// 默认截图帧率
+export const defaultScreenshotFrameRate: ScreenshotFrameRate = '5';
 
 // 默认配置
 export const defaultConfig: MxuConfig = {

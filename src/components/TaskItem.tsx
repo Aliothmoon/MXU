@@ -16,10 +16,14 @@ import {
   Trash2,
   ToggleLeft,
   ToggleRight,
+  Loader2,
+  FileText,
+  Link,
+  AlertCircle,
 } from 'lucide-react';
 import { useAppStore, type TaskRunStatus } from '@/stores/appStore';
 import { maaService } from '@/services/maaService';
-import { markdownToHtml, markdownToHtmlWithLocalImages } from '@/services/contentResolver';
+import { useResolvedContent } from '@/services/contentResolver';
 import { generateTaskPipelineOverride } from '@/utils';
 import { OptionEditor } from './OptionEditor';
 import { ContextMenu, useContextMenu, type MenuItem } from './ContextMenu';
@@ -75,11 +79,66 @@ interface TaskItemProps {
   task: SelectedTask;
 }
 
+/** 描述内容组件：显示从文件/URL/直接文本解析的内容 */
+function DescriptionContent({ 
+  html, 
+  loading, 
+  type, 
+  loaded, 
+  error 
+}: { 
+  html: string; 
+  loading: boolean; 
+  type: 'url' | 'file' | 'text';
+  loaded: boolean;
+  error?: string;
+}) {
+  const { t } = useTranslation();
+  
+  if (loading) {
+    return (
+      <div className="flex items-center gap-1.5 text-xs text-text-muted">
+        <Loader2 className="w-3 h-3 animate-spin" />
+        <span>{t('taskItem.loadingDescription')}</span>
+      </div>
+    );
+  }
+  
+  return (
+    <div className="space-y-1">
+      {/* 来源提示 */}
+      {loaded && type !== 'text' && (
+        <div className="flex items-center gap-1 text-[10px] text-text-muted">
+          {type === 'file' ? (
+            <FileText className="w-3 h-3" />
+          ) : (
+            <Link className="w-3 h-3" />
+          )}
+          <span>{t(type === 'file' ? 'taskItem.loadedFromFile' : 'taskItem.loadedFromUrl')}</span>
+        </div>
+      )}
+      {/* 加载错误提示 */}
+      {error && type !== 'text' && (
+        <div className="flex items-center gap-1 text-[10px] text-warning">
+          <AlertCircle className="w-3 h-3" />
+          <span>{t('taskItem.loadDescriptionFailed')}: {error}</span>
+        </div>
+      )}
+      {/* 内容 */}
+      {html && (
+        <div 
+          className="text-xs text-text-muted [&_p]:my-0.5 [&_a]:text-accent [&_a]:hover:underline"
+          dangerouslySetInnerHTML={{ __html: html }}
+        />
+      )}
+    </div>
+  );
+}
+
 export function TaskItem({ instanceId, task }: TaskItemProps) {
   const { t } = useTranslation();
   const [isEditing, setIsEditing] = useState(false);
   const [editName, setEditName] = useState('');
-  const [taskDescriptionHtml, setTaskDescriptionHtml] = useState('');
   
   const {
     projectInterface,
@@ -100,6 +159,7 @@ export function TaskItem({ instanceId, task }: TaskItemProps) {
     instances,
     findMaaTaskIdBySelectedTaskId,
     basePath,
+    interfaceTranslations,
   } = useAppStore();
   
   // 获取任务运行状态
@@ -156,6 +216,19 @@ export function TaskItem({ instanceId, task }: TaskItemProps) {
   }, [task.optionValues, taskRunStatus, instanceId, task.id, task, projectInterface, findMaaTaskIdBySelectedTaskId]);
 
   const { state: menuState, show: showMenu, hide: hideMenu } = useContextMenu();
+  
+  const taskDef = projectInterface?.task.find(t => t.name === task.taskName);
+  const langKey = language === 'zh-CN' ? 'zh_cn' : 'en_us';
+  
+  // 获取翻译表
+  const translations = interfaceTranslations[langKey];
+  
+  // 使用新的 Hook 解析任务描述（支持文件/URL/直接文本）
+  const resolvedDescription = useResolvedContent(
+    taskDef?.description ? resolveI18nText(taskDef.description, langKey) : undefined,
+    basePath,
+    translations
+  );
 
   const {
     attributes,
@@ -175,23 +248,6 @@ export function TaskItem({ instanceId, task }: TaskItemProps) {
     transform: CSS.Transform.toString(constrainedTransform),
     transition,
   };
-
-  const taskDef = projectInterface?.task.find(t => t.name === task.taskName);
-  const langKey = language === 'zh-CN' ? 'zh_cn' : 'en_us';
-  
-  // 异步加载任务描述 HTML（支持本地图片）
-  useEffect(() => {
-    const description = taskDef?.description;
-    if (!description) {
-      setTaskDescriptionHtml('');
-      return;
-    }
-    const resolvedDesc = resolveI18nText(description, langKey) || '';
-    // 先显示不含本地图片的版本
-    setTaskDescriptionHtml(markdownToHtml(resolvedDesc));
-    // 异步加载本地图片
-    markdownToHtmlWithLocalImages(resolvedDesc, basePath).then(setTaskDescriptionHtml);
-  }, [taskDef?.description, langKey, basePath, resolveI18nText]);
   
   if (!taskDef) return null;
 
@@ -582,11 +638,16 @@ export function TaskItem({ instanceId, task }: TaskItemProps) {
       {hasOptions && task.expanded && (
         <div className="border-t border-border bg-bg-tertiary p-3">
           {/* 任务描述 */}
-          {taskDescriptionHtml && (
-            <div 
-              className="text-xs text-text-muted mb-3 [&_p]:my-0.5 [&_a]:text-accent [&_a]:hover:underline"
-              dangerouslySetInnerHTML={{ __html: taskDescriptionHtml }}
-            />
+          {(resolvedDescription.html || resolvedDescription.loading) && (
+            <div className="mb-3">
+              <DescriptionContent
+                html={resolvedDescription.html}
+                loading={resolvedDescription.loading}
+                type={resolvedDescription.type}
+                loaded={resolvedDescription.loaded}
+                error={resolvedDescription.error}
+              />
+            </div>
           )}
           <div className="space-y-3">
             {taskDef.option?.map((optionKey) => (

@@ -17,12 +17,10 @@ import clsx from 'clsx';
 import { maaService } from '@/services/maaService';
 import { useAppStore } from '@/stores/appStore';
 import { ContextMenu, useContextMenu, type MenuItem } from './ContextMenu';
+import { getFrameInterval } from './FrameRateSelector';
 import { loggers } from '@/utils/logger';
 
 const log = loggers.ui;
-
-// 默认帧率限制：每秒 5 帧
-const DEFAULT_FPS = 5;
 
 export function ScreenshotPanel() {
   const { t } = useTranslation();
@@ -34,6 +32,7 @@ export function ScreenshotPanel() {
     setInstanceScreenshotStreaming,
     screenshotPanelExpanded,
     setScreenshotPanelExpanded,
+    screenshotFrameRate,
   } = useAppStore();
   
   const [screenshotUrl, setScreenshotUrl] = useState<string | null>(null);
@@ -45,7 +44,12 @@ export function ScreenshotPanel() {
   // 用于控制截图流的引用
   const streamingRef = useRef(false);
   const lastFrameTimeRef = useRef(0);
-  const frameIntervalRef = useRef(1000 / DEFAULT_FPS);
+  const frameIntervalRef = useRef(getFrameInterval(screenshotFrameRate));
+  
+  // 帧率配置变化时更新帧间隔
+  useEffect(() => {
+    frameIntervalRef.current = getFrameInterval(screenshotFrameRate);
+  }, [screenshotFrameRate]);
   
   const instanceId = activeInstanceId || '';
   
@@ -133,6 +137,9 @@ export function ScreenshotPanel() {
     // 保存启动时的实例 ID，用于检查是否仍是活动实例
     const loopInstanceId = instanceId;
     
+    // 初始化下一帧时间
+    let nextFrameTime = Date.now();
+    
     while (streamingRef.current) {
       // 检查当前实例是否仍是活动实例，避免非活动 tab 刷新截图
       const currentActiveId = useAppStore.getState().activeInstanceId;
@@ -140,13 +147,24 @@ export function ScreenshotPanel() {
         break;
       }
       
+      // 计算需要等待的时间（sleep until 下一帧时间点）
       const now = Date.now();
-      const elapsed = now - lastFrameTimeRef.current;
+      const sleepTime = nextFrameTime - now;
+      if (sleepTime > 0) {
+        await new Promise(resolve => setTimeout(resolve, sleepTime));
+      }
       
-      // 帧率限制
-      if (elapsed < frameIntervalRef.current) {
-        await new Promise(resolve => setTimeout(resolve, frameIntervalRef.current - elapsed));
-        continue;
+      // 计算下一帧时间（基于当前目标时间累加，避免截图耗时影响帧率）
+      const frameInterval = frameIntervalRef.current;
+      if (frameInterval > 0) {
+        nextFrameTime += frameInterval;
+        // 如果已经落后太多，重置到当前时间
+        if (nextFrameTime < Date.now()) {
+          nextFrameTime = Date.now() + frameInterval;
+        }
+      } else {
+        // unlimited 模式，立即执行下一帧
+        nextFrameTime = Date.now();
       }
       
       lastFrameTimeRef.current = Date.now();
@@ -173,9 +191,6 @@ export function ScreenshotPanel() {
       } catch {
         // 静默处理错误，继续下一帧
       }
-      
-      // 短暂等待再进行下一次循环检查
-      await new Promise(resolve => setTimeout(resolve, 50));
     }
   }, [instanceId, captureFrame, getCachedFrame]);
 

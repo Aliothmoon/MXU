@@ -81,6 +81,11 @@ export default {
     customName: '自定义名称',
     originalName: '原始名称',
     cannotEditRunningTask: '已执行或正在执行的任务无法编辑选项',
+    // 描述内容加载
+    loadingDescription: '加载描述中...',
+    loadedFromFile: '内容来自本地文件',
+    loadedFromUrl: '内容来自网络',
+    loadDescriptionFailed: '加载失败',
     // 任务运行状态
     status: {
       idle: '未执行',
@@ -98,6 +103,14 @@ export default {
     yes: '是',
     no: '否',
     invalidInput: '输入格式不正确',
+  },
+  
+  // 选项编辑器
+  optionEditor: {
+    loadingDescription: '加载描述中...',
+    loadedFromFile: '内容来自本地文件',
+    loadedFromUrl: '内容来自网络',
+    loadDescriptionFailed: '加载失败',
   },
 
   // 控制器
@@ -154,6 +167,16 @@ export default {
     connectFirst: '请先连接设备',
     fullscreen: '全屏显示',
     exitFullscreen: '退出全屏',
+    // 帧率设置
+    frameRate: {
+      title: '实时截图帧率',
+      hint: '仅影响画面预览流畅度与系统资源占用，不影响任务识别与执行',
+      unlimited: '不限',
+      fps5: '每秒 5 帧',
+      fps1: '每秒 1 帧',
+      every5s: '5 秒一帧',
+      every30s: '30 秒一帧',
+    },
   },
 
   // 日志/信息流
@@ -213,9 +236,13 @@ export default {
   debug: {
     title: '调试',
     versions: '版本信息',
-    interfaceVersion: 'interface 版本',
+    interfaceVersion: '{{name}} 版本',
     maafwVersion: 'maafw 版本',
     mxuVersion: 'mxu 版本',
+    refreshUI: '刷新 UI',
+    resetWindowSize: '重置窗口尺寸',
+    openConfigDir: '打开配置目录',
+    openLogDir: '打开日志目录',
   },
 
   // 欢迎弹窗

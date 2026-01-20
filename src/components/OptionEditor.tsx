@@ -1,9 +1,10 @@
 import { useState, useMemo, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useAppStore } from '@/stores/appStore';
-import { loadIconAsDataUrl, markdownToHtml, markdownToHtmlWithLocalImages } from '@/services/contentResolver';
+import { loadIconAsDataUrl, useResolvedContent } from '@/services/contentResolver';
 import type { OptionValue, CaseItem, InputItem } from '@/types/interface';
 import clsx from 'clsx';
-import { Info, AlertCircle } from 'lucide-react';
+import { Info, AlertCircle, Loader2, FileText, Link } from 'lucide-react';
 
 /** 异步加载图标组件 */
 function AsyncIcon({ icon, basePath, className }: { icon?: string; basePath: string; className?: string }) {
@@ -50,28 +51,58 @@ function OptionLabel({
   );
 }
 
-/** 显示选项描述文本（支持 Markdown/HTML，包括本地图片） */
-function OptionDescription({ description, basePath }: { description?: string; basePath: string }) {
-  const [html, setHtml] = useState<string>('');
+/** 显示选项描述文本（支持文件/URL/直接文本，以及 Markdown/HTML 和本地图片） */
+function OptionDescription({ 
+  description, 
+  basePath,
+  translations,
+}: { 
+  description?: string; 
+  basePath: string;
+  translations?: Record<string, string>;
+}) {
+  const { t } = useTranslation();
+  const resolved = useResolvedContent(description, basePath, translations);
   
-  useEffect(() => {
-    if (!description) {
-      setHtml('');
-      return;
-    }
-    // 先显示不含本地图片的版本
-    setHtml(markdownToHtml(description));
-    // 异步加载本地图片
-    markdownToHtmlWithLocalImages(description, basePath).then(setHtml);
-  }, [description, basePath]);
+  if (!description && !resolved.loading) return null;
   
-  if (!description) return null;
+  if (resolved.loading) {
+    return (
+      <div className="flex items-center gap-1.5 text-xs text-text-muted">
+        <Loader2 className="w-3 h-3 animate-spin" />
+        <span>{t('optionEditor.loadingDescription')}</span>
+      </div>
+    );
+  }
   
   return (
-    <div 
-      className="text-xs text-text-muted [&_p]:my-0.5 [&_a]:text-accent [&_a]:hover:underline"
-      dangerouslySetInnerHTML={{ __html: html }}
-    />
+    <div className="space-y-1">
+      {/* 来源提示 */}
+      {resolved.loaded && resolved.type !== 'text' && (
+        <div className="flex items-center gap-1 text-[10px] text-text-muted">
+          {resolved.type === 'file' ? (
+            <FileText className="w-3 h-3" />
+          ) : (
+            <Link className="w-3 h-3" />
+          )}
+          <span>{t(resolved.type === 'file' ? 'optionEditor.loadedFromFile' : 'optionEditor.loadedFromUrl')}</span>
+        </div>
+      )}
+      {/* 加载错误提示 */}
+      {resolved.error && resolved.type !== 'text' && (
+        <div className="flex items-center gap-1 text-[10px] text-warning">
+          <AlertCircle className="w-3 h-3" />
+          <span>{t('optionEditor.loadDescriptionFailed')}: {resolved.error}</span>
+        </div>
+      )}
+      {/* 内容 */}
+      {resolved.html && (
+        <div 
+          className="text-xs text-text-muted [&_p]:my-0.5 [&_a]:text-accent [&_a]:hover:underline"
+          dangerouslySetInnerHTML={{ __html: resolved.html }}
+        />
+      )}
+    </div>
   );
 }
 
@@ -161,7 +192,7 @@ function InputField({
 }
 
 export function OptionEditor({ instanceId, taskId, optionKey, value, depth = 0, disabled = false }: OptionEditorProps) {
-  const { projectInterface, setTaskOptionValue, resolveI18nText, language, basePath } = useAppStore();
+  const { projectInterface, setTaskOptionValue, resolveI18nText, language, basePath, interfaceTranslations } = useAppStore();
 
   const optionDef = projectInterface?.option?.[optionKey];
   if (!optionDef) return null;
@@ -169,6 +200,7 @@ export function OptionEditor({ instanceId, taskId, optionKey, value, depth = 0, 
   const langKey = language === 'zh-CN' ? 'zh_cn' : 'en_us';
   const optionLabel = resolveI18nText(optionDef.label, langKey) || optionKey;
   const optionDescription = resolveI18nText(optionDef.description, langKey);
+  const translations = interfaceTranslations[langKey];
 
   // 获取当前选中的 case（用于渲染嵌套选项）
   const getSelectedCase = (): CaseItem | undefined => {
@@ -227,7 +259,7 @@ export function OptionEditor({ instanceId, taskId, optionKey, value, depth = 0, 
             />
           </button>
         </div>
-        <OptionDescription description={optionDescription} basePath={basePath} />
+        <OptionDescription description={optionDescription} basePath={basePath} translations={translations} />
         {/* 渲染嵌套选项 */}
         {nestedOptionKeys.length > 0 && (
           <div className="space-y-2">
@@ -262,7 +294,7 @@ export function OptionEditor({ instanceId, taskId, optionKey, value, depth = 0, 
           icon={optionDef.icon}
           basePath={basePath}
         />
-        <OptionDescription description={optionDescription} basePath={basePath} />
+        <OptionDescription description={optionDescription} basePath={basePath} translations={translations} />
         {optionDef.inputs.map((input) => {
           const inputValue = inputValues[input.name] ?? input.default ?? '';
 
@@ -327,7 +359,7 @@ export function OptionEditor({ instanceId, taskId, optionKey, value, depth = 0, 
           })}
         </select>
       </div>
-      <OptionDescription description={optionDescription} basePath={basePath} />
+      <OptionDescription description={optionDescription} basePath={basePath} translations={translations} />
       {/* 渲染嵌套选项 */}
       {nestedOptionKeys.length > 0 && (
         <div className="space-y-2">

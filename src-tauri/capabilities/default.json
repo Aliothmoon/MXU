@@ -12,6 +12,18 @@
     "core:event:allow-listen",
     "opener:default",
     {
+      "identifier": "opener:allow-open-path",
+      "allow": [
+        { "path": "**/*" }
+      ]
+    },
+    {
+      "identifier": "opener:allow-reveal-item-in-dir",
+      "allow": [
+        { "path": "**/*" }
+      ]
+    },
+    {
       "identifier": "fs:allow-read-file",
       "allow": [
         { "path": "**/*" }

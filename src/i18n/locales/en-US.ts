@@ -81,6 +81,11 @@ export default {
     customName: 'Custom Name',
     originalName: 'Original Name',
     cannotEditRunningTask: 'Cannot edit options for running or completed tasks',
+    // Description content loading
+    loadingDescription: 'Loading description...',
+    loadedFromFile: 'Content loaded from local file',
+    loadedFromUrl: 'Content loaded from URL',
+    loadDescriptionFailed: 'Failed to load',
     // Task run status
     status: {
       idle: 'Not started',
@@ -98,6 +103,14 @@ export default {
     yes: 'Yes',
     no: 'No',
     invalidInput: 'Invalid input format',
+  },
+  
+  // Option Editor
+  optionEditor: {
+    loadingDescription: 'Loading description...',
+    loadedFromFile: 'Content loaded from local file',
+    loadedFromUrl: 'Content loaded from URL',
+    loadDescriptionFailed: 'Failed to load',
   },
 
   // Controller
@@ -154,6 +167,16 @@ export default {
     connectFirst: 'Please connect a device first',
     fullscreen: 'Fullscreen',
     exitFullscreen: 'Exit Fullscreen',
+    // Frame rate settings
+    frameRate: {
+      title: 'Screenshot Frame Rate',
+      hint: 'Only affects preview smoothness and system resource usage, does not impact task recognition or execution',
+      unlimited: 'Unlimited',
+      fps5: '5 FPS',
+      fps1: '1 FPS',
+      every5s: 'Every 5s',
+      every30s: 'Every 30s',
+    },
   },
 
   // Logs
@@ -213,9 +236,13 @@ export default {
   debug: {
     title: 'Debug',
     versions: 'Versions',
-    interfaceVersion: 'Interface version',
+    interfaceVersion: '{{name}} version',
     maafwVersion: 'maafw version',
     mxuVersion: 'mxu version',
+    refreshUI: 'Refresh UI',
+    resetWindowSize: 'Reset Window Size',
+    openConfigDir: 'Open Config Dir',
+    openLogDir: 'Open Log Dir',
   },
 
   // Welcome dialog
