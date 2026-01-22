@@ -36,7 +36,6 @@ export function DeviceSelector({
   onConnectionChange,
 }: DeviceSelectorProps) {
   const { t } = useTranslation();
-  const { basePath } = useAppStore();
 
   const [isSearching, setIsSearching] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
@@ -244,8 +243,7 @@ export function DeviceSelector({
         throw new Error('请先选择设备');
       }
 
-      const agentPath = `${basePath}/MaaAgentBinary`;
-      const ctrlId = await maaService.connectController(instanceId, config, agentPath);
+      const ctrlId = await maaService.connectController(instanceId, config);
 
       // 注册 ctrl_id 与设备名/类型的映射
       let deviceName = '';
@@ -322,8 +320,7 @@ export function DeviceSelector({
         config: device.config,
       };
 
-      const agentPath = `${basePath}/MaaAgentBinary`;
-      const ctrlId = await maaService.connectController(instanceId, config, agentPath);
+      const ctrlId = await maaService.connectController(instanceId, config);
 
       // 注册 ctrl_id 与设备名/类型的映射
       registerCtrlIdName(ctrlId, device.name || device.address, 'device');
@@ -372,8 +369,7 @@ export function DeviceSelector({
         };
       }
 
-      const agentPath = `${basePath}/MaaAgentBinary`;
-      const ctrlId = await maaService.connectController(instanceId, config, agentPath);
+      const ctrlId = await maaService.connectController(instanceId, config);
 
       // 注册 ctrl_id 与窗口名/类型的映射
       registerCtrlIdName(ctrlId, win.window_name || win.class_name, 'window');

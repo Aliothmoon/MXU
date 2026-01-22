@@ -350,8 +350,7 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
       setAutoConnectPhase('connecting');
       log.info('连接设备...');
 
-      const agentPath = `${basePath}/MaaAgentBinary`;
-      const ctrlId = await maaService.connectController(instanceId, config, agentPath);
+      const ctrlId = await maaService.connectController(instanceId, config);
       pendingCtrlIdRef.current = ctrlId;
 
       // 注册 ctrl_id 与设备名/类型的映射
@@ -574,8 +573,7 @@ export function Toolbar({ showAddPanel, onToggleAddPanel }: ToolbarProps) {
             return false;
           }
 
-          const agentPath = `${basePath}/MaaAgentBinary`;
-          const ctrlId = await maaService.connectController(targetId, config, agentPath);
+          const ctrlId = await maaService.connectController(targetId, config);
 
           // 注册 ctrl_id 与设备名/类型的映射
           let deviceName = '';

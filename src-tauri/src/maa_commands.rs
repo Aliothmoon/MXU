@@ -664,12 +664,10 @@ pub fn maa_connect_controller(
     state: State<Arc<MaaState>>,
     instance_id: String,
     config: ControllerConfig,
-    agent_path: Option<String>,
 ) -> Result<i64, String> {
     info!("maa_connect_controller called");
     info!("instance_id: {}", instance_id);
     info!("config: {:?}", config);
-    debug!("agent_path: {:?}", agent_path);
 
     let guard = MAA_LIBRARY.lock().map_err(|e| {
         error!("Failed to lock MAA_LIBRARY: {}", e);
@@ -715,7 +713,10 @@ pub fn maa_connect_controller(
                 let adb_path_c = to_cstring(adb_path);
                 let address_c = to_cstring(address);
                 let config_c = to_cstring(config);
-                let agent_path_c = to_cstring(agent_path.as_deref().unwrap_or(""));
+                let agent_path = get_maafw_dir()
+                    .map(|p| p.join("MaaAgentBinary").to_string_lossy().to_string())
+                    .unwrap_or_default();
+                let agent_path_c = to_cstring(&agent_path);
 
                 debug!("Calling MaaAdbControllerCreate...");
                 let ctrl = (lib.maa_adb_controller_create)(

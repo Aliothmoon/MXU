@@ -524,8 +524,7 @@ export function ConnectionPanel() {
     deviceName: string,
     targetType: 'device' | 'window',
   ) => {
-    const agentPath = `${basePath}/MaaAgentBinary`;
-    const ctrlId = await maaService.connectController(instanceId, config, agentPath);
+    const ctrlId = await maaService.connectController(instanceId, config);
 
     // 注册 ctrl_id 与设备/窗口名及类型的映射，用于日志显示
     registerCtrlIdName(ctrlId, deviceName || '', targetType);

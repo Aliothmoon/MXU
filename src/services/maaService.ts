@@ -158,14 +158,9 @@ export const maaService = {
    * 连接控制器（异步，通过回调通知完成状态）
    * @param instanceId 实例 ID
    * @param config 控制器配置
-   * @param agentPath MaaAgentBinary 路径（可选）
    * @returns 连接请求 ID，通过监听 maa-callback 事件获取完成状态
    */
-  async connectController(
-    instanceId: string,
-    config: ControllerConfig,
-    agentPath?: string,
-  ): Promise<number> {
+  async connectController(instanceId: string, config: ControllerConfig): Promise<number> {
     log.info('连接控制器, 实例:', instanceId, '类型:', config.type);
     log.debug('控制器配置:', config);
 
@@ -178,7 +173,6 @@ export const maaService = {
       const ctrlId = await invoke<number>('maa_connect_controller', {
         instanceId,
         config,
-        agentPath: agentPath || null,
       });
       log.info('控制器连接请求已发送, ctrlId:', ctrlId);
       return ctrlId;
