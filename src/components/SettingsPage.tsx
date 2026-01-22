@@ -160,34 +160,68 @@ export function SettingsPage() {
     [updateInfo, basePath, setDownloadStatus, setDownloadProgress, setDownloadSavePath],
   );
 
-  // 处理 CDK 变化：如果正在使用 GitHub 下载，切换到 Mirror酱
+  // 处理 CDK 变化：如果正在使用 GitHub 下载或下载失败，尝试切换到 Mirror酱
   const handleCdkChange = useCallback(
     async (newCdk: string) => {
       const previousCdk = mirrorChyanSettings.cdk;
       setMirrorChyanCdk(newCdk);
 
-      // 检测：从空 CDK 变为有效 CDK，且正在使用 GitHub 下载
+      // 检测：从空 CDK 变为有效 CDK
       const isEnteringCdk = !previousCdk && newCdk.trim().length > 0;
+
+      // 需要尝试切换到 Mirror酱 的场景：
+      // 1. 正在使用 GitHub 下载
+      // 2. 下载失败（可能是 GitHub 下载失败）
+      // 3. 有更新但没有下载链接（可能是之前没有 CDK 导致无法获取 Mirror酱 链接）
+      // 4. 有更新且使用 GitHub 但还在准备下载（可能是 GitHub 连接不上一直卡住）
+      // 5. 还没有更新信息（可能是启动时检查更新请求还在进行或失败了）
       const isDownloadingFromGitHub =
         downloadStatus === 'downloading' && updateInfo?.downloadSource === 'github';
+      const isDownloadFailed = downloadStatus === 'failed';
+      const hasUpdateButNoUrl = updateInfo?.hasUpdate && !updateInfo?.downloadUrl;
+      const isPendingGitHubDownload =
+        downloadStatus === 'idle' &&
+        updateInfo?.hasUpdate &&
+        updateInfo?.downloadUrl &&
+        updateInfo?.downloadSource === 'github';
+      const noUpdateInfoYet = !updateInfo && downloadStatus === 'idle';
 
-      if (isEnteringCdk && isDownloadingFromGitHub && projectInterface?.mirrorchyan_rid) {
-        addDebugLog('检测到填入 CDK，正在停止 GitHub 下载并切换到 Mirror酱...');
+      const shouldTryMirrorChyan =
+        isEnteringCdk &&
+        projectInterface?.mirrorchyan_rid &&
+        (isDownloadingFromGitHub ||
+          isDownloadFailed ||
+          hasUpdateButNoUrl ||
+          isPendingGitHubDownload ||
+          noUpdateInfoYet);
 
-        // 取消当前下载并等待完成
-        await cancelDownload();
+      if (shouldTryMirrorChyan) {
+        if (isDownloadingFromGitHub) {
+          addDebugLog('检测到填入 CDK，正在停止 GitHub 下载并切换到 Mirror酱...');
+          // 取消当前下载并等待完成
+          await cancelDownload();
+        } else if (isDownloadFailed) {
+          addDebugLog('检测到填入 CDK，下载之前失败，尝试使用 Mirror酱 重新下载...');
+        } else if (isPendingGitHubDownload) {
+          addDebugLog('检测到填入 CDK，GitHub 下载等待中，切换到 Mirror酱...');
+        } else if (noUpdateInfoYet) {
+          addDebugLog('检测到填入 CDK，尚未获取到更新信息，使用 Mirror酱 检查更新...');
+        } else {
+          addDebugLog('检测到填入 CDK，尝试获取 Mirror酱 下载链接...');
+        }
+
         resetDownloadState();
 
         // 使用新 CDK 重新检查更新
         setUpdateCheckLoading(true);
         try {
           const result = await checkAndPrepareDownload({
-            resourceId: projectInterface.mirrorchyan_rid,
-            currentVersion: projectInterface.version || '',
+            resourceId: projectInterface!.mirrorchyan_rid!,
+            currentVersion: projectInterface!.version || '',
             cdk: newCdk,
             channel: mirrorChyanSettings.channel,
             userAgent: 'MXU',
-            githubUrl: projectInterface.github,
+            githubUrl: projectInterface!.github,
             basePath,
           });
 
@@ -223,6 +257,7 @@ export function SettingsPage() {
       setUpdateCheckLoading,
       setUpdateInfo,
       startDownload,
+      addDebugLog,
     ],
   );
 

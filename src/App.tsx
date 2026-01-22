@@ -264,11 +264,15 @@ function App() {
           });
         } else {
           setDownloadStatus('failed');
+          // 下载失败时重置标志，允许后续重新下载（如填入 CDK 后切换下载源）
+          downloadStartedRef.current = false;
           log.warn('更新下载失败');
         }
       } catch (error) {
         log.error('更新下载出错:', error);
         setDownloadStatus('failed');
+        // 下载出错时也重置标志
+        downloadStartedRef.current = false;
       }
     },
     [setDownloadStatus, setDownloadProgress, setDownloadSavePath],
