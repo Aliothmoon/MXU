@@ -437,6 +437,13 @@ export function ScreenshotPanel() {
     const isConnected = connectionStatus === 'Connected';
     prevConnectionStatusRef.current = connectionStatus;
 
+    // 连接断开时清空截图（如切换控制器、断开连接等场景）
+    if (wasConnected && !isConnected) {
+      setScreenshotUrl(null);
+      streamingRef.current = false;
+      setIsStreaming(false);
+    }
+
     if (
       isConnected &&
       !wasConnected &&
