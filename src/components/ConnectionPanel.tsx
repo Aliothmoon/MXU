@@ -431,22 +431,25 @@ export function ConnectionPanel() {
         const devices = await maaService.findAdbDevices();
         setCachedAdbDevices(devices);
 
-        // 尝试自动匹配保存的设备名称
+        // 自动连接策略：
+        // 1. 如果有保存的设备名称且能唯一匹配 → 自动连接该设备
+        // 2. 如果没有保存的设备名称（首次使用）且扫描到设备 → 自动连接第一个
+        // 3. 如果有保存的设备但匹配不到 → 显示下拉框让用户选择
         let autoSelected: AdbDevice | null = null;
         if (savedDevice?.adbDeviceName) {
           const matched = devices.filter((d) => d.name === savedDevice.adbDeviceName);
           if (matched.length === 1) {
             autoSelected = matched[0];
           }
+        } else if (devices.length > 0) {
+          // 没有保存设备时自动选择第一个
+          autoSelected = devices[0];
         }
 
         if (autoSelected) {
-          // 自动选中并连接
           handleSelectAdbDevice(autoSelected);
-        } else if (devices.length === 1) {
-          setSelectedAdbDevice(devices[0]);
-          setShowDeviceDropdown(true);
         } else if (devices.length > 0) {
+          // 有保存设备但匹配失败，显示下拉框让用户选择
           setShowDeviceDropdown(true);
         }
       } else if (controllerType === 'Win32' || controllerType === 'Gamepad') {
@@ -457,22 +460,22 @@ export function ConnectionPanel() {
         const windows = await maaService.findWin32Windows(classRegex, windowRegex);
         setCachedWin32Windows(windows);
 
-        // 尝试自动匹配保存的窗口名称
+        // 自动连接策略（与 Adb 一致）
         let autoSelected: Win32Window | null = null;
         if (savedDevice?.windowName) {
           const matched = windows.filter((w) => w.window_name === savedDevice.windowName);
           if (matched.length === 1) {
             autoSelected = matched[0];
           }
+        } else if (windows.length > 0) {
+          // 没有保存窗口时自动选择第一个
+          autoSelected = windows[0];
         }
 
         if (autoSelected) {
-          // 自动选中并连接
           handleSelectWindow(autoSelected);
-        } else if (windows.length === 1) {
-          setSelectedWindow(windows[0]);
-          setShowDeviceDropdown(true);
         } else if (windows.length > 0) {
+          // 有保存窗口但匹配失败，显示下拉框让用户选择
           setShowDeviceDropdown(true);
         }
       }
