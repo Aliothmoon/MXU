@@ -142,9 +142,7 @@ function handleCallback(
         const deviceName = registeredName || inferred.name || '';
         const ctrlType = registeredType || inferred.type;
         const targetText =
-          ctrlType === 'window'
-            ? t('logs.messages.targetWindow')
-            : t('logs.messages.targetDevice');
+          ctrlType === 'window' ? t('logs.messages.targetWindow') : t('logs.messages.targetDevice');
         addLog(instanceId, {
           type: 'info',
           message: `${t('logs.messages.connecting', { target: targetText })} ${deviceName}`,
@@ -162,9 +160,7 @@ function handleCallback(
         const deviceName = registeredName || inferred.name || '';
         const ctrlType = registeredType || inferred.type;
         const targetText =
-          ctrlType === 'window'
-            ? t('logs.messages.targetWindow')
-            : t('logs.messages.targetDevice');
+          ctrlType === 'window' ? t('logs.messages.targetWindow') : t('logs.messages.targetDevice');
         addLog(instanceId, {
           type: 'success',
           message: `${t('logs.messages.connected', { target: targetText })} ${deviceName}`,
@@ -182,9 +178,7 @@ function handleCallback(
         const deviceName = registeredName || inferred.name || '';
         const ctrlType = registeredType || inferred.type;
         const targetText =
-          ctrlType === 'window'
-            ? t('logs.messages.targetWindow')
-            : t('logs.messages.targetDevice');
+          ctrlType === 'window' ? t('logs.messages.targetWindow') : t('logs.messages.targetDevice');
         addLog(instanceId, {
           type: 'error',
           message: `${t('logs.messages.connectFailed', { target: targetText })} ${deviceName}`,

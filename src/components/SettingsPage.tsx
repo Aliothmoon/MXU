@@ -840,7 +840,9 @@ export function SettingsPage() {
                       <div className="pt-4 border-t border-border">
                         <div className="flex items-center gap-3 mb-3">
                           <Key className="w-5 h-5 text-accent" />
-                          <span className="font-medium text-text-primary">{t('mirrorChyan.cdk')}</span>
+                          <span className="font-medium text-text-primary">
+                            {t('mirrorChyan.cdk')}
+                          </span>
                           <button
                             onClick={() => openMirrorChyanWebsite('mxu_settings')}
                             className="ml-auto text-xs text-accent hover:underline flex items-center gap-1"
@@ -879,150 +881,155 @@ export function SettingsPage() {
 
                       {/* 检查更新按钮 */}
                       <div className="pt-4 border-t border-border space-y-4">
-                    {/* 正在下载时隐藏检查更新按钮 */}
-                    {downloadStatus === 'downloading' ? (
-                      <div className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium bg-bg-tertiary text-text-muted">
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                        {t('mirrorChyan.downloading')}
-                      </div>
-                    ) : downloadStatus === 'completed' && installStatus === 'idle' ? (
-                      /* 下载完成等待安装，显示立即安装按钮 */
-                      <button
-                        onClick={handleInstallNow}
-                        className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium bg-accent text-white hover:bg-accent-hover transition-colors"
-                      >
-                        <PackageCheck className="w-4 h-4" />
-                        {t('mirrorChyan.installNow')}
-                      </button>
-                    ) : (
-                      /* 默认检查更新按钮 */
-                      <button
-                        onClick={handleCheckUpdate}
-                        disabled={updateCheckLoading}
-                        className={clsx(
-                          'w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors',
-                          updateCheckLoading
-                            ? 'bg-bg-tertiary text-text-muted cursor-not-allowed'
-                            : 'bg-accent text-white hover:bg-accent-hover',
-                        )}
-                      >
-                        {updateCheckLoading ? (
-                          <>
+                        {/* 正在下载时隐藏检查更新按钮 */}
+                        {downloadStatus === 'downloading' ? (
+                          <div className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium bg-bg-tertiary text-text-muted">
                             <Loader2 className="w-4 h-4 animate-spin" />
-                            {t('mirrorChyan.checking')}
-                          </>
+                            {t('mirrorChyan.downloading')}
+                          </div>
+                        ) : downloadStatus === 'completed' && installStatus === 'idle' ? (
+                          /* 下载完成等待安装，显示立即安装按钮 */
+                          <button
+                            onClick={handleInstallNow}
+                            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium bg-accent text-white hover:bg-accent-hover transition-colors"
+                          >
+                            <PackageCheck className="w-4 h-4" />
+                            {t('mirrorChyan.installNow')}
+                          </button>
                         ) : (
-                          <>
-                            <RefreshCw className="w-4 h-4" />
-                            {t('mirrorChyan.checkUpdate')}
-                          </>
-                        )}
-                      </button>
-                    )}
-
-                    {/* 更新状态显示 */}
-                    {updateInfo && !updateInfo.hasUpdate && !updateInfo.errorCode && (
-                      <p className="text-xs text-center text-text-muted">
-                        {t('mirrorChyan.upToDate', { version: updateInfo.versionName })}
-                      </p>
-                    )}
-
-                    {/* 有更新时显示更新内容和下载进度 */}
-                    {updateInfo?.hasUpdate && (
-                      <div className="space-y-4 p-4 bg-bg-tertiary rounded-lg border border-border">
-                        {/* 新版本标题 */}
-                        <div className="flex items-center gap-2">
-                          <Download className="w-4 h-4 text-accent" />
-                          <span className="text-sm font-medium text-text-primary">
-                            {t('mirrorChyan.newVersion')}
-                          </span>
-                          <span className="font-mono text-sm text-accent font-semibold">
-                            {updateInfo.versionName}
-                          </span>
-                          {updateInfo.channel && updateInfo.channel !== 'stable' && (
-                            <span className="px-1.5 py-0.5 bg-warning/20 text-warning text-xs rounded font-medium">
-                              {updateInfo.channel}
-                            </span>
-                          )}
-                        </div>
-
-                        {/* 更新日志 */}
-                        {updateInfo.releaseNote && (
-                          <ReleaseNotes
-                            releaseNote={updateInfo.releaseNote}
-                            collapsibleTitle
-                            maxHeightClass="max-h-32"
-                            bgClass="bg-bg-secondary"
-                            textSizeClass="text-xs"
-                          />
-                        )}
-
-                        {/* API 错误提示 */}
-                        {updateInfo.errorCode && errorText && (
-                          <div
+                          /* 默认检查更新按钮 */
+                          <button
+                            onClick={handleCheckUpdate}
+                            disabled={updateCheckLoading}
                             className={clsx(
-                              'flex items-start gap-2 p-2 rounded-lg text-xs',
-                              isCdkError ? 'bg-warning/10 text-warning' : 'bg-error/10 text-error',
+                              'w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors',
+                              updateCheckLoading
+                                ? 'bg-bg-tertiary text-text-muted cursor-not-allowed'
+                                : 'bg-accent text-white hover:bg-accent-hover',
                             )}
                           >
-                            <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
-                            <span>{errorText}</span>
+                            {updateCheckLoading ? (
+                              <>
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                                {t('mirrorChyan.checking')}
+                              </>
+                            ) : (
+                              <>
+                                <RefreshCw className="w-4 h-4" />
+                                {t('mirrorChyan.checkUpdate')}
+                              </>
+                            )}
+                          </button>
+                        )}
+
+                        {/* 更新状态显示 */}
+                        {updateInfo && !updateInfo.hasUpdate && !updateInfo.errorCode && (
+                          <p className="text-xs text-center text-text-muted">
+                            {t('mirrorChyan.upToDate', { version: updateInfo.versionName })}
+                          </p>
+                        )}
+
+                        {/* 有更新时显示更新内容和下载进度 */}
+                        {updateInfo?.hasUpdate && (
+                          <div className="space-y-4 p-4 bg-bg-tertiary rounded-lg border border-border">
+                            {/* 新版本标题 */}
+                            <div className="flex items-center gap-2">
+                              <Download className="w-4 h-4 text-accent" />
+                              <span className="text-sm font-medium text-text-primary">
+                                {t('mirrorChyan.newVersion')}
+                              </span>
+                              <span className="font-mono text-sm text-accent font-semibold">
+                                {updateInfo.versionName}
+                              </span>
+                              {updateInfo.channel && updateInfo.channel !== 'stable' && (
+                                <span className="px-1.5 py-0.5 bg-warning/20 text-warning text-xs rounded font-medium">
+                                  {updateInfo.channel}
+                                </span>
+                              )}
+                            </div>
+
+                            {/* 更新日志 */}
+                            {updateInfo.releaseNote && (
+                              <ReleaseNotes
+                                releaseNote={updateInfo.releaseNote}
+                                collapsibleTitle
+                                maxHeightClass="max-h-32"
+                                bgClass="bg-bg-secondary"
+                                textSizeClass="text-xs"
+                              />
+                            )}
+
+                            {/* API 错误提示 */}
+                            {updateInfo.errorCode && errorText && (
+                              <div
+                                className={clsx(
+                                  'flex items-start gap-2 p-2 rounded-lg text-xs',
+                                  isCdkError
+                                    ? 'bg-warning/10 text-warning'
+                                    : 'bg-error/10 text-error',
+                                )}
+                              >
+                                <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+                                <span>{errorText}</span>
+                              </div>
+                            )}
+
+                            {/* 没有下载链接的提示 */}
+                            {!updateInfo.downloadUrl && !updateInfo.errorCode && (
+                              <div className="flex items-center gap-2 text-xs text-text-muted">
+                                <AlertCircle className="w-3.5 h-3.5 text-warning" />
+                                <span>{t('mirrorChyan.noDownloadUrl')}</span>
+                              </div>
+                            )}
+
+                            {/* 下载进度 */}
+                            {updateInfo.downloadUrl && downloadStatus !== 'idle' && (
+                              <DownloadProgressBar
+                                downloadStatus={downloadStatus}
+                                downloadProgress={downloadProgress}
+                                fileSize={updateInfo.fileSize}
+                                downloadSource={updateInfo.downloadSource}
+                                onInstallClick={handleInstallNow}
+                                onRetryClick={() => {
+                                  resetDownloadState();
+                                  startDownload();
+                                }}
+                                progressBgClass="bg-bg-secondary"
+                              />
+                            )}
+
+                            {/* 等待下载 */}
+                            {updateInfo.downloadUrl && downloadStatus === 'idle' && (
+                              <div className="flex items-center gap-2 text-xs text-text-muted">
+                                <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                                <span>{t('mirrorChyan.preparingDownload')}</span>
+                              </div>
+                            )}
                           </div>
                         )}
 
-                        {/* 没有下载链接的提示 */}
-                        {!updateInfo.downloadUrl && !updateInfo.errorCode && (
-                          <div className="flex items-center gap-2 text-xs text-text-muted">
-                            <AlertCircle className="w-3.5 h-3.5 text-warning" />
-                            <span>{t('mirrorChyan.noDownloadUrl')}</span>
-                          </div>
-                        )}
-
-                        {/* 下载进度 */}
-                        {updateInfo.downloadUrl && downloadStatus !== 'idle' && (
-                          <DownloadProgressBar
-                            downloadStatus={downloadStatus}
-                            downloadProgress={downloadProgress}
-                            fileSize={updateInfo.fileSize}
-                            downloadSource={updateInfo.downloadSource}
-                            onInstallClick={handleInstallNow}
-                            onRetryClick={() => {
-                              resetDownloadState();
-                              startDownload();
-                            }}
-                            progressBgClass="bg-bg-secondary"
-                          />
-                        )}
-
-                        {/* 等待下载 */}
-                        {updateInfo.downloadUrl && downloadStatus === 'idle' && (
-                          <div className="flex items-center gap-2 text-xs text-text-muted">
-                            <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                            <span>{t('mirrorChyan.preparingDownload')}</span>
-                          </div>
-                        )}
-                      </div>
-                    )}
-
-                    {/* 只有错误没有更新时显示错误 */}
-                    {updateInfo && !updateInfo.hasUpdate && updateInfo.errorCode && errorText && (
-                      <div
-                        className={clsx(
-                          'flex items-start gap-2 p-3 rounded-lg text-sm',
-                          isCdkError
-                            ? 'bg-warning/10 text-warning border border-warning/30'
-                            : 'bg-error/10 text-error border border-error/30',
-                        )}
-                      >
-                        <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
-                        <div className="space-y-1">
-                          <p>{errorText}</p>
-                          {isCdkError && (
-                            <p className="text-xs opacity-80">{t('mirrorChyan.cdkHint')}</p>
+                        {/* 只有错误没有更新时显示错误 */}
+                        {updateInfo &&
+                          !updateInfo.hasUpdate &&
+                          updateInfo.errorCode &&
+                          errorText && (
+                            <div
+                              className={clsx(
+                                'flex items-start gap-2 p-3 rounded-lg text-sm',
+                                isCdkError
+                                  ? 'bg-warning/10 text-warning border border-warning/30'
+                                  : 'bg-error/10 text-error border border-error/30',
+                              )}
+                            >
+                              <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
+                              <div className="space-y-1">
+                                <p>{errorText}</p>
+                                {isCdkError && (
+                                  <p className="text-xs opacity-80">{t('mirrorChyan.cdkHint')}</p>
+                                )}
+                              </div>
+                            </div>
                           )}
-                        </div>
-                      </div>
-                    )}
                       </div>
                     </>
                   )}

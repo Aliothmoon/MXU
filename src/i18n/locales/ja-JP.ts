@@ -484,7 +484,8 @@ export default {
     title: 'MaaFramework バージョンが古すぎます',
     message:
       '現在の MaaFramework バージョン ({{current}}) は、サポートされている最低バージョン ({{minimum}}) より低いです。一部の機能が正常に動作しない可能性があります。',
-    suggestion: 'MaaFramework のバージョンを更新するよう、プロジェクト開発者にお問い合わせください。',
+    suggestion:
+      'MaaFramework のバージョンを更新するよう、プロジェクト開発者にお問い合わせください。',
     understand: '了解しました',
   },
 
