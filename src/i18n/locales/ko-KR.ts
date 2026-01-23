@@ -88,6 +88,7 @@ export default {
     collapse: '옵션 접기',
     remove: '작업 삭제',
     rename: '이름 변경',
+    clickToToggle: '클릭하여 전환',
     renameTask: '작업 이름 변경',
     customName: '사용자 지정 이름',
     originalName: '원래 이름',

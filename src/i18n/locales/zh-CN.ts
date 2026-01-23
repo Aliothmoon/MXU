@@ -88,6 +88,7 @@ export default {
     collapse: '折叠选项',
     remove: '移除任务',
     rename: '重命名',
+    clickToToggle: '单击选中/取消',
     renameTask: '重命名任务',
     customName: '自定义名称',
     originalName: '原始名称',

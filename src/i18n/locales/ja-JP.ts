@@ -89,6 +89,7 @@ export default {
     collapse: 'オプションを折りたたむ',
     remove: 'タスクを削除',
     rename: '名前を変更',
+    clickToToggle: 'クリックで切替',
     renameTask: 'タスク名を変更',
     customName: 'カスタム名',
     originalName: '元の名前',

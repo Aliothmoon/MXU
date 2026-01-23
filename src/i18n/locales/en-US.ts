@@ -89,6 +89,7 @@ export default {
     collapse: 'Collapse options',
     remove: 'Remove task',
     rename: 'Rename',
+    clickToToggle: 'Click to toggle',
     renameTask: 'Rename Task',
     customName: 'Custom Name',
     originalName: 'Original Name',

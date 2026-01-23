@@ -401,10 +401,10 @@ export function TaskItem({ instanceId, task }: TaskItemProps) {
     resolveI18nText,
   ]);
 
-  const handleDoubleClick = (e: React.MouseEvent) => {
+  const handleNameClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    setEditName(task.customName || '');
-    setIsEditing(true);
+    if (isInstanceRunning || isIncompatible) return;
+    toggleTaskEnabled(instanceId, task.id);
   };
 
   const handleSaveEdit = () => {
@@ -693,11 +693,14 @@ export function TaskItem({ instanceId, task }: TaskItemProps) {
             </div>
           ) : (
             <>
-              {/* 任务名称 */}
+              {/* 任务名称：单击切换选中 */}
               <div
-                className="flex items-center gap-1 min-w-0 cursor-pointer flex-shrink-0"
-                onDoubleClick={handleDoubleClick}
-                title={t('taskItem.rename')}
+                className={clsx(
+                  'flex items-center gap-1 min-w-0 flex-shrink-0',
+                  isInstanceRunning || isIncompatible ? 'cursor-not-allowed' : 'cursor-pointer',
+                )}
+                onClick={handleNameClick}
+                title={t('taskItem.clickToToggle')}
               >
                 <span
                   className={clsx(
