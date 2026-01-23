@@ -28,7 +28,8 @@ export function ResourceSelector({
   isRunning = false,
 }: ResourceSelectorProps) {
   const { t } = useTranslation();
-  const { basePath, language, interfaceTranslations, registerResIdName, projectInterface } = useAppStore();
+  const { basePath, language, interfaceTranslations, registerResIdName, projectInterface } =
+    useAppStore();
 
   // 未选择控制器时，使用第一个控制器作为默认值判断兼容性
   const effectiveControllerName = selectedControllerName || projectInterface?.controller[0]?.name;

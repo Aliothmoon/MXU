@@ -267,7 +267,9 @@ export function RecentlyClosedPanel({ onClose, anchorRef }: RecentlyClosedPanelP
                       title={formatTasksSummary(item, t, projectInterface)}
                     >
                       <ListChecks className="w-3 h-3 shrink-0" />
-                      <span className="truncate">{formatTasksSummary(item, t, projectInterface)}</span>
+                      <span className="truncate">
+                        {formatTasksSummary(item, t, projectInterface)}
+                      </span>
                     </span>
                   )}
                 </div>

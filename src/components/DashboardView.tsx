@@ -220,7 +220,8 @@ function InstanceCard({ instanceId, instanceName, isActive, onSelect }: Instance
               entry: taskDef.entry,
               pipeline_override: generateTaskPipelineOverride(selectedTask, projectInterface),
             });
-            const taskDisplayName = selectedTask.customName || taskDef.label || selectedTask.taskName;
+            const taskDisplayName =
+              selectedTask.customName || taskDef.label || selectedTask.taskName;
             registerEntryTaskName(taskDef.entry, taskDisplayName);
           }
 

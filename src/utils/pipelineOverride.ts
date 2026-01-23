@@ -106,7 +106,12 @@ export const generateTaskPipelineOverride = (
   // 处理顶层选项及其嵌套选项
   if (taskDef.option && projectInterface.option) {
     for (const optionKey of taskDef.option) {
-      collectOptionOverrides(optionKey, selectedTask.optionValues, overrides, projectInterface.option);
+      collectOptionOverrides(
+        optionKey,
+        selectedTask.optionValues,
+        overrides,
+        projectInterface.option,
+      );
     }
   }
 

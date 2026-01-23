@@ -548,40 +548,42 @@ export function ScreenshotPanel() {
           {/* 分隔线放在 overflow-hidden 内部，避免展开瞬间闪烁 */}
           <div className="border-t border-border" />
           <div className="p-3">
-          {/* 截图区域 */}
-          <div
-            className="aspect-video bg-bg-tertiary rounded-md flex items-center justify-center overflow-hidden relative"
-            onContextMenu={handleContextMenu}
-          >
-            {screenshotUrl ? (
-              <>
-                <img
-                  src={screenshotUrl}
-                  alt="Screenshot"
-                  className="w-full h-full object-contain rounded-md"
-                />
-                {/* 流模式指示器 */}
-                {isStreaming && (
-                  <div className="absolute top-2 right-2 flex items-center gap-1 px-1.5 py-0.5 bg-success/80 rounded text-white text-xs">
-                    <span className="w-1.5 h-1.5 bg-white rounded-full animate-pulse" />
-                    LIVE
-                  </div>
-                )}
-              </>
-            ) : (
-              <div className="flex flex-col items-center gap-2 text-text-muted">
-                <Monitor className="w-10 h-10 opacity-30" />
-                {error ? (
-                  <span className="text-xs text-error">{error}</span>
-                ) : (
-                  <>
-                    <span className="text-xs">{t('screenshot.noScreenshot')}</span>
-                    <span className="text-xs text-text-muted">{t('screenshot.connectFirst')}</span>
-                  </>
-                )}
-              </div>
-            )}
-          </div>
+            {/* 截图区域 */}
+            <div
+              className="aspect-video bg-bg-tertiary rounded-md flex items-center justify-center overflow-hidden relative"
+              onContextMenu={handleContextMenu}
+            >
+              {screenshotUrl ? (
+                <>
+                  <img
+                    src={screenshotUrl}
+                    alt="Screenshot"
+                    className="w-full h-full object-contain rounded-md"
+                  />
+                  {/* 流模式指示器 */}
+                  {isStreaming && (
+                    <div className="absolute top-2 right-2 flex items-center gap-1 px-1.5 py-0.5 bg-success/80 rounded text-white text-xs">
+                      <span className="w-1.5 h-1.5 bg-white rounded-full animate-pulse" />
+                      LIVE
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div className="flex flex-col items-center gap-2 text-text-muted">
+                  <Monitor className="w-10 h-10 opacity-30" />
+                  {error ? (
+                    <span className="text-xs text-error">{error}</span>
+                  ) : (
+                    <>
+                      <span className="text-xs">{t('screenshot.noScreenshot')}</span>
+                      <span className="text-xs text-text-muted">
+                        {t('screenshot.connectFirst')}
+                      </span>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>

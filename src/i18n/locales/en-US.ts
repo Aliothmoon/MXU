@@ -273,7 +273,8 @@ export default {
     devMode: 'Developer Mode',
     devModeHint: 'Allow pressing F5 to refresh UI when enabled',
     saveDraw: 'Save Debug Images',
-    saveDrawHint: 'Save recognition and action debug images to log directory (auto-disabled on restart)',
+    saveDrawHint:
+      'Save recognition and action debug images to log directory (auto-disabled on restart)',
   },
 
   // Welcome dialog

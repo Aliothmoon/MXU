@@ -91,13 +91,17 @@ function TaskButton({
           new
         </span>
       )}
-      <Plus className={clsx('w-4 h-4 flex-shrink-0', disabled ? 'text-text-muted' : 'text-accent')} />
+      <Plus
+        className={clsx('w-4 h-4 flex-shrink-0', disabled ? 'text-text-muted' : 'text-accent')}
+      />
       <span className="flex-1 truncate">{label}</span>
       {count > 0 && (
-        <span className={clsx(
-          'flex-shrink-0 px-1.5 py-0.5 text-xs rounded-full font-medium',
-          disabled ? 'bg-text-muted/10 text-text-muted' : 'bg-accent/10 text-accent',
-        )}>
+        <span
+          className={clsx(
+            'flex-shrink-0 px-1.5 py-0.5 text-xs rounded-full font-medium',
+            disabled ? 'bg-text-muted/10 text-text-muted' : 'bg-accent/10 text-accent',
+          )}
+        >
           {count}
         </span>
       )}
@@ -130,10 +134,12 @@ function TaskButton({
             ) : null}
             {/* 不兼容提示 - 在描述下方显示 */}
             {disabled && incompatibleReason && (
-              <div className={clsx(
-                'flex items-center gap-1.5 px-2 py-1.5 rounded-md bg-warning/10 text-warning',
-                hasDescription && 'mt-2',
-              )}>
+              <div
+                className={clsx(
+                  'flex items-center gap-1.5 px-2 py-1.5 rounded-md bg-warning/10 text-warning',
+                  hasDescription && 'mt-2',
+                )}
+              >
                 <AlertCircle className="w-3 h-3 flex-shrink-0" />
                 <span>{incompatibleReason}</span>
               </div>

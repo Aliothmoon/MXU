@@ -17,7 +17,9 @@ export function parseJsonc<T>(content: string, sourceName?: string): T {
   if (errors.length > 0) {
     const source = sourceName ? ` [${sourceName}]` : '';
     for (const error of errors) {
-      log.warn(`JSONC 解析警告${source}: ${printParseErrorCode(error.error)} at offset ${error.offset}`);
+      log.warn(
+        `JSONC 解析警告${source}: ${printParseErrorCode(error.error)} at offset ${error.offset}`,
+      );
     }
   }
 

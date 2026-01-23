@@ -1148,8 +1148,9 @@ export const useAppStore = create<AppState>()(
         const pi = state.projectInterface;
         // 自动取消不兼容任务的勾选
         const updatedInstances = state.instances.map((instance) => {
-          if (instance.id !== instanceId) return { ...instance, controllerName: instance.controllerName };
-          
+          if (instance.id !== instanceId)
+            return { ...instance, controllerName: instance.controllerName };
+
           const updatedTasks = instance.selectedTasks.map((task) => {
             const taskDef = pi?.task.find((t) => t.name === task.taskName);
             // 如果任务指定了 controller 限制且不包含新控制器，取消勾选
@@ -1160,7 +1161,7 @@ export const useAppStore = create<AppState>()(
             }
             return task;
           });
-          
+
           return { ...instance, controllerName, selectedTasks: updatedTasks };
         });
 
@@ -1178,8 +1179,9 @@ export const useAppStore = create<AppState>()(
         const pi = state.projectInterface;
         // 自动取消不兼容任务的勾选
         const updatedInstances = state.instances.map((instance) => {
-          if (instance.id !== instanceId) return { ...instance, resourceName: instance.resourceName };
-          
+          if (instance.id !== instanceId)
+            return { ...instance, resourceName: instance.resourceName };
+
           const updatedTasks = instance.selectedTasks.map((task) => {
             const taskDef = pi?.task.find((t) => t.name === task.taskName);
             // 如果任务指定了 resource 限制且不包含新资源，取消勾选
@@ -1190,7 +1192,7 @@ export const useAppStore = create<AppState>()(
             }
             return task;
           });
-          
+
           return { ...instance, resourceName, selectedTasks: updatedTasks };
         });
 

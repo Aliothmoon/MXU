@@ -635,7 +635,9 @@ export function TaskItem({ instanceId, task }: TaskItemProps) {
         <label
           className={clsx(
             'flex items-center relative',
-            isInstanceRunning || isIncompatible ? 'cursor-not-allowed opacity-50' : 'cursor-pointer',
+            isInstanceRunning || isIncompatible
+              ? 'cursor-not-allowed opacity-50'
+              : 'cursor-pointer',
           )}
           title={isIncompatible ? incompatibleReason : undefined}
         >

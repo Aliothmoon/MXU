@@ -317,7 +317,8 @@ export function ConnectionPanel() {
   }, [allResources, getResourceCompatibility]);
 
   const currentResourceName = selectedResource[instanceId] || compatibleResources[0]?.name;
-  const currentResource = allResources.find((r) => r.name === currentResourceName) || compatibleResources[0];
+  const currentResource =
+    allResources.find((r) => r.name === currentResourceName) || compatibleResources[0];
 
   // 当设备和资源都准备好时自动折叠
   useEffect(() => {
@@ -1149,371 +1150,375 @@ export function ConnectionPanel() {
           {/* 分隔线放在 overflow-hidden 内部，避免展开瞬间闪烁 */}
           <div className="border-t border-border" />
           <div className="p-3 space-y-3">
-          {/* 控制器选择 - 标题和按钮同一行 */}
-          {controllers.length > 1 && (
-            <div className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-2 text-xs text-text-secondary flex-shrink-0">
-                {getControllerIcon(controllerType)}
-                <span>{t('controller.title')}</span>
-              </div>
-              <div className="flex flex-wrap gap-1 justify-end">
-                {controllers.map((controller) => (
-                  <button
-                    key={controller.name}
-                    onClick={async () => {
-                      // 点击当前已选中的控制器，不做任何操作
-                      if (currentControllerName === controller.name) return;
+            {/* 控制器选择 - 标题和按钮同一行 */}
+            {controllers.length > 1 && (
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2 text-xs text-text-secondary flex-shrink-0">
+                  {getControllerIcon(controllerType)}
+                  <span>{t('controller.title')}</span>
+                </div>
+                <div className="flex flex-wrap gap-1 justify-end">
+                  {controllers.map((controller) => (
+                    <button
+                      key={controller.name}
+                      onClick={async () => {
+                        // 点击当前已选中的控制器，不做任何操作
+                        if (currentControllerName === controller.name) return;
 
-                      // 切换控制器时先断开旧连接
-                      if (isConnected) {
-                        await maaService.destroyInstance(instanceId).catch(() => {});
-                      }
-                      setSelectedController(instanceId, controller.name);
-                      setIsConnected(false);
-                      setInstanceConnectionStatus(instanceId, 'Disconnected');
-                      setSelectedAdbDevice(null);
-                      setSelectedWindow(null);
-
-                      // 检查当前资源是否支持新控制器，如果不支持则切换到第一个可用资源
-                      const newControllerResources = allResources.filter((r) => {
-                        if (r.controller && r.controller.length > 0) {
-                          return r.controller.includes(controller.name);
+                        // 切换控制器时先断开旧连接
+                        if (isConnected) {
+                          await maaService.destroyInstance(instanceId).catch(() => {});
                         }
-                        return true;
-                      });
+                        setSelectedController(instanceId, controller.name);
+                        setIsConnected(false);
+                        setInstanceConnectionStatus(instanceId, 'Disconnected');
+                        setSelectedAdbDevice(null);
+                        setSelectedWindow(null);
 
-                      const currentResourceSupported = newControllerResources.some(
-                        (r) => r.name === currentResourceName,
-                      );
+                        // 检查当前资源是否支持新控制器，如果不支持则切换到第一个可用资源
+                        const newControllerResources = allResources.filter((r) => {
+                          if (r.controller && r.controller.length > 0) {
+                            return r.controller.includes(controller.name);
+                          }
+                          return true;
+                        });
 
-                      if (!currentResourceSupported && newControllerResources.length > 0) {
-                        // 当前资源不支持新控制器，切换到第一个可用资源
-                        setSelectedResource(instanceId, newControllerResources[0].name);
-                        // 同时清除资源加载状态
-                        setIsResourceLoaded(false);
-                        setInstanceResourceLoaded(instanceId, false);
-                        lastLoadedResourceRef.current = null;
-                      }
-                    }}
-                    disabled={isConnecting || isSearching}
-                    className={clsx(
-                      'px-2 py-0.5 text-xs rounded-md transition-colors',
-                      currentControllerName === controller.name
-                        ? 'bg-accent text-white'
-                        : 'bg-bg-tertiary text-text-secondary hover:bg-bg-hover',
-                      (isConnecting || isSearching) && 'opacity-50 cursor-not-allowed',
-                    )}
-                  >
-                    {getControllerDisplayName(controller)}
-                  </button>
-                ))}
+                        const currentResourceSupported = newControllerResources.some(
+                          (r) => r.name === currentResourceName,
+                        );
+
+                        if (!currentResourceSupported && newControllerResources.length > 0) {
+                          // 当前资源不支持新控制器，切换到第一个可用资源
+                          setSelectedResource(instanceId, newControllerResources[0].name);
+                          // 同时清除资源加载状态
+                          setIsResourceLoaded(false);
+                          setInstanceResourceLoaded(instanceId, false);
+                          lastLoadedResourceRef.current = null;
+                        }
+                      }}
+                      disabled={isConnecting || isSearching}
+                      className={clsx(
+                        'px-2 py-0.5 text-xs rounded-md transition-colors',
+                        currentControllerName === controller.name
+                          ? 'bg-accent text-white'
+                          : 'bg-bg-tertiary text-text-secondary hover:bg-bg-hover',
+                        (isConnecting || isSearching) && 'opacity-50 cursor-not-allowed',
+                      )}
+                    >
+                      {getControllerDisplayName(controller)}
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
-          )}
+            )}
 
-          {/* PlayCover 地址输入和连接按钮 */}
-          {controllerType === 'PlayCover' && (
-            <div className="flex gap-2">
-              <input
-                type="text"
-                value={playcoverAddress}
-                onChange={(e) => setPlaycoverAddress(e.target.value)}
-                placeholder="127.0.0.1:1717"
-                disabled={isConnected || isConnecting}
-                className={clsx(
-                  'flex-1 min-w-0 px-2.5 py-1.5 rounded-md border bg-bg-tertiary border-border text-sm',
-                  'text-text-primary placeholder:text-text-muted',
-                  'focus:outline-none focus:border-accent transition-colors',
-                  isConnected && 'opacity-60 cursor-not-allowed',
-                )}
-              />
-              <button
-                onClick={handleConnect}
-                disabled={isConnecting || isConnected || !canConnect()}
-                className={clsx(
-                  'flex items-center justify-center px-3 py-1.5 rounded-md border transition-colors',
-                  isConnected
-                    ? 'bg-success/20 border-success/50 cursor-not-allowed'
-                    : isConnecting || !canConnect()
-                      ? 'bg-bg-tertiary border-border opacity-50 cursor-not-allowed'
-                      : 'bg-accent border-accent text-white hover:bg-accent-hover',
-                )}
-                title={t('controller.connect')}
-              >
-                {isConnecting ? (
-                  <Loader2 className="w-3.5 h-3.5 animate-spin text-text-secondary" />
-                ) : isConnected ? (
-                  <Check className="w-3.5 h-3.5 text-success" />
-                ) : (
-                  <Wifi className="w-3.5 h-3.5" />
-                )}
-              </button>
-            </div>
-          )}
-
-          {/* 设备选择（Adb/Win32/Gamepad）- 下拉框和刷新按钮同一行 */}
-          {needsDeviceSearch && (
-            <div className="flex gap-2">
-              <div className="relative flex-1 min-w-0">
-                <button
-                  ref={deviceDropdownRef}
-                  onClick={() => {
-                    if (!showDeviceDropdown) {
-                      setDeviceDropdownPos(calcDropdownPosition(deviceDropdownRef));
-                    }
-                    setShowDeviceDropdown(!showDeviceDropdown);
-                  }}
-                  disabled={isConnecting}
+            {/* PlayCover 地址输入和连接按钮 */}
+            {controllerType === 'PlayCover' && (
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={playcoverAddress}
+                  onChange={(e) => setPlaycoverAddress(e.target.value)}
+                  placeholder="127.0.0.1:1717"
+                  disabled={isConnected || isConnecting}
                   className={clsx(
-                    'w-full flex items-center justify-between px-2.5 py-1.5 rounded-md border transition-colors text-sm',
-                    'bg-bg-tertiary border-border',
-                    isConnecting
-                      ? 'opacity-60 cursor-not-allowed'
-                      : 'hover:border-accent cursor-pointer',
+                    'flex-1 min-w-0 px-2.5 py-1.5 rounded-md border bg-bg-tertiary border-border text-sm',
+                    'text-text-primary placeholder:text-text-muted',
+                    'focus:outline-none focus:border-accent transition-colors',
+                    isConnected && 'opacity-60 cursor-not-allowed',
                   )}
+                />
+                <button
+                  onClick={handleConnect}
+                  disabled={isConnecting || isConnected || !canConnect()}
+                  className={clsx(
+                    'flex items-center justify-center px-3 py-1.5 rounded-md border transition-colors',
+                    isConnected
+                      ? 'bg-success/20 border-success/50 cursor-not-allowed'
+                      : isConnecting || !canConnect()
+                        ? 'bg-bg-tertiary border-border opacity-50 cursor-not-allowed'
+                        : 'bg-accent border-accent text-white hover:bg-accent-hover',
+                  )}
+                  title={t('controller.connect')}
                 >
-                  <span
-                    className={clsx(
-                      'truncate',
-                      (controllerType === 'Adb' ? selectedAdbDevice : selectedWindow)
-                        ? 'text-text-primary'
-                        : 'text-text-muted',
-                    )}
-                  >
-                    {getSelectedDeviceText()}
-                  </span>
-                  <ChevronDown
-                    className={clsx(
-                      'w-4 h-4 text-text-muted transition-transform flex-shrink-0',
-                      showDeviceDropdown && 'rotate-180',
-                    )}
-                  />
+                  {isConnecting ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin text-text-secondary" />
+                  ) : isConnected ? (
+                    <Check className="w-3.5 h-3.5 text-success" />
+                  ) : (
+                    <Wifi className="w-3.5 h-3.5" />
+                  )}
                 </button>
-
-                {/* 下拉菜单 - 使用 fixed 定位避免被父容器裁剪 */}
-                {showDeviceDropdown && deviceDropdownPos && (
-                  <div
-                    ref={deviceMenuRef}
-                    className="fixed z-[100] bg-bg-secondary border border-border rounded-lg shadow-lg max-h-48 overflow-y-auto"
-                    style={{
-                      top: deviceDropdownPos.top,
-                      left: deviceDropdownPos.left,
-                      width: deviceDropdownPos.width,
-                    }}
-                  >
-                    {deviceList.length > 0 ? (
-                      deviceList.map((item) => (
-                        <button
-                          key={item.id}
-                          onClick={item.onClick}
-                          className={clsx(
-                            'w-full flex items-center justify-between px-2.5 py-1.5 text-left transition-colors',
-                            'hover:bg-bg-hover',
-                            item.selected && !item.isHistorical && 'bg-accent/10',
-                            item.isHistorical && 'bg-amber-500/10',
-                          )}
-                        >
-                          <div className="min-w-0 flex-1 flex items-center gap-2">
-                            {item.isHistorical && (
-                              <History className="w-3.5 h-3.5 text-warning flex-shrink-0" />
-                            )}
-                            <div className="min-w-0 flex-1">
-                              <div className="text-sm text-text-primary truncate">{item.name}</div>
-                              <div
-                                className={clsx(
-                                  'text-xs truncate',
-                                  item.isHistorical ? 'text-warning' : 'text-text-muted',
-                                )}
-                              >
-                                {item.description}
-                              </div>
-                            </div>
-                          </div>
-                          {item.selected && !item.isHistorical && (
-                            <Check className="w-4 h-4 text-accent flex-shrink-0 ml-2" />
-                          )}
-                        </button>
-                      ))
-                    ) : (
-                      <div className="px-3 py-3 text-center text-text-muted text-xs">
-                        {isSearching
-                          ? t('common.loading')
-                          : controllerType === 'Win32' || controllerType === 'Gamepad'
-                            ? t('controller.noWindows')
-                            : t('controller.noDevices')}
-                      </div>
-                    )}
-                  </div>
-                )}
               </div>
+            )}
 
-              {/* 刷新按钮 - 与加载资源按钮保持一致的尺寸 */}
-              <button
-                onClick={handleSearch}
-                disabled={isSearching || isConnecting}
-                className={clsx(
-                  'flex items-center justify-center px-3 py-1.5 rounded-md border transition-colors',
-                  'bg-bg-tertiary border-border',
-                  isSearching || isConnecting
-                    ? 'opacity-50 cursor-not-allowed'
-                    : 'hover:bg-bg-hover hover:border-accent',
-                )}
-                title={t('controller.refresh')}
-              >
-                {isSearching ? (
-                  <Loader2 className="w-3.5 h-3.5 animate-spin text-text-secondary" />
-                ) : (
-                  <RefreshCw className="w-3.5 h-3.5 text-text-secondary" />
-                )}
-              </button>
-            </div>
-          )}
-
-          {/* 设备错误提示 */}
-          {deviceError && (
-            <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-md bg-error/10 text-error text-xs">
-              <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
-              <span>{deviceError}</span>
-            </div>
-          )}
-
-          {/* 分隔线 */}
-          <div className="border-t border-border" />
-
-          {/* 资源选择 - 选中即自动加载 */}
-          <div className="relative">
-            {/* 资源下拉框 */}
-            {(() => {
-              const selectedResourceCompatibility = currentResource
-                ? getResourceCompatibility(currentResource)
-                : { isIncompatible: false, reason: '' };
-              const isSelectedIncompatible = selectedResourceCompatibility.isIncompatible;
-
-              return (
-                <button
-                  ref={resourceDropdownRef}
-                  onClick={() => {
-                    if (isLoadingResource || activeInstance?.isRunning) return;
-                    if (!showResourceDropdown) {
-                      setResourceDropdownPos(calcDropdownPositionUp(resourceDropdownRef));
-                    }
-                    setShowResourceDropdown(!showResourceDropdown);
-                  }}
-                  disabled={isLoadingResource || activeInstance?.isRunning || false}
-                  className={clsx(
-                    'w-full flex items-center justify-between px-2.5 py-1.5 rounded-md border transition-colors text-sm',
-                    'bg-bg-tertiary',
-                    isSelectedIncompatible ? 'border-warning/50' : 'border-border',
-                    isLoadingResource || activeInstance?.isRunning
-                      ? 'opacity-60 cursor-not-allowed'
-                      : 'hover:border-accent cursor-pointer',
-                  )}
-                  title={isSelectedIncompatible ? selectedResourceCompatibility.reason : undefined}
-                >
-                  <div className="flex items-center gap-2 min-w-0 flex-1">
-                    {isSelectedIncompatible && (
-                      <AlertCircle className="w-3.5 h-3.5 text-warning flex-shrink-0" />
+            {/* 设备选择（Adb/Win32/Gamepad）- 下拉框和刷新按钮同一行 */}
+            {needsDeviceSearch && (
+              <div className="flex gap-2">
+                <div className="relative flex-1 min-w-0">
+                  <button
+                    ref={deviceDropdownRef}
+                    onClick={() => {
+                      if (!showDeviceDropdown) {
+                        setDeviceDropdownPos(calcDropdownPosition(deviceDropdownRef));
+                      }
+                      setShowDeviceDropdown(!showDeviceDropdown);
+                    }}
+                    disabled={isConnecting}
+                    className={clsx(
+                      'w-full flex items-center justify-between px-2.5 py-1.5 rounded-md border transition-colors text-sm',
+                      'bg-bg-tertiary border-border',
+                      isConnecting
+                        ? 'opacity-60 cursor-not-allowed'
+                        : 'hover:border-accent cursor-pointer',
                     )}
+                  >
                     <span
                       className={clsx(
                         'truncate',
-                        currentResource
-                          ? isSelectedIncompatible
-                            ? 'text-text-muted'
-                            : 'text-text-primary'
+                        (controllerType === 'Adb' ? selectedAdbDevice : selectedWindow)
+                          ? 'text-text-primary'
                           : 'text-text-muted',
                       )}
                     >
-                      {currentResource
-                        ? getResourceDisplayName(currentResource)
-                        : t('resource.selectResource')}
+                      {getSelectedDeviceText()}
                     </span>
-                    {isLoadingResource && (
-                      <Loader2 className="w-3.5 h-3.5 animate-spin text-accent flex-shrink-0" />
-                    )}
-                    {!isLoadingResource && isResourceLoaded && !isSelectedIncompatible && (
-                      <CheckCircle className="w-3.5 h-3.5 text-success flex-shrink-0" />
-                    )}
-                  </div>
-                  <ChevronDown
-                    className={clsx(
-                      'w-4 h-4 text-text-muted transition-transform flex-shrink-0',
-                      showResourceDropdown && 'rotate-180',
-                    )}
-                  />
-                </button>
-              );
-            })()}
-
-            {/* 资源下拉菜单 - 使用 fixed 定位向上展开 */}
-            {showResourceDropdown && resourceDropdownPos && (
-              <div
-                ref={resourceMenuRef}
-                className="fixed z-[100] bg-bg-secondary border border-border rounded-lg shadow-lg max-h-48 overflow-y-auto"
-                style={{
-                  bottom: window.innerHeight - resourceDropdownPos.top + 4,
-                  left: resourceDropdownPos.left,
-                  width: resourceDropdownPos.width,
-                }}
-              >
-                {allResources.map((resource) => {
-                  const { isIncompatible, reason } = getResourceCompatibility(resource);
-                  const isSelected = currentResourceName === resource.name;
-
-                  return (
-                    <button
-                      key={resource.name}
-                      onClick={() => !isIncompatible && handleResourceSelect(resource)}
-                      disabled={isIncompatible}
+                    <ChevronDown
                       className={clsx(
-                        'w-full flex items-center justify-between px-2.5 py-1.5 text-left transition-colors',
-                        isIncompatible
-                          ? 'opacity-60 cursor-not-allowed'
-                          : 'hover:bg-bg-hover cursor-pointer',
-                        isSelected && !isIncompatible && 'bg-accent/10',
+                        'w-4 h-4 text-text-muted transition-transform flex-shrink-0',
+                        showDeviceDropdown && 'rotate-180',
                       )}
-                      title={isIncompatible ? reason : undefined}
+                    />
+                  </button>
+
+                  {/* 下拉菜单 - 使用 fixed 定位避免被父容器裁剪 */}
+                  {showDeviceDropdown && deviceDropdownPos && (
+                    <div
+                      ref={deviceMenuRef}
+                      className="fixed z-[100] bg-bg-secondary border border-border rounded-lg shadow-lg max-h-48 overflow-y-auto"
+                      style={{
+                        top: deviceDropdownPos.top,
+                        left: deviceDropdownPos.left,
+                        width: deviceDropdownPos.width,
+                      }}
                     >
-                      <div className="min-w-0 flex-1">
-                        <div
-                          className={clsx(
-                            'text-sm truncate flex items-center gap-1.5',
-                            isIncompatible ? 'text-text-muted' : 'text-text-primary',
-                          )}
-                        >
-                          {isIncompatible && (
-                            <AlertCircle className="w-3.5 h-3.5 text-warning flex-shrink-0" />
-                          )}
-                          <span className="truncate">{getResourceDisplayName(resource)}</span>
-                        </div>
-                        {/* 描述或不兼容提示 */}
-                        {isIncompatible ? (
-                          <div className="text-xs text-warning truncate">{reason}</div>
-                        ) : (
-                          resource.description && (
-                            <div className="text-xs text-text-muted truncate">
-                              {resolveI18nText(resource.description, translations)}
+                      {deviceList.length > 0 ? (
+                        deviceList.map((item) => (
+                          <button
+                            key={item.id}
+                            onClick={item.onClick}
+                            className={clsx(
+                              'w-full flex items-center justify-between px-2.5 py-1.5 text-left transition-colors',
+                              'hover:bg-bg-hover',
+                              item.selected && !item.isHistorical && 'bg-accent/10',
+                              item.isHistorical && 'bg-amber-500/10',
+                            )}
+                          >
+                            <div className="min-w-0 flex-1 flex items-center gap-2">
+                              {item.isHistorical && (
+                                <History className="w-3.5 h-3.5 text-warning flex-shrink-0" />
+                              )}
+                              <div className="min-w-0 flex-1">
+                                <div className="text-sm text-text-primary truncate">
+                                  {item.name}
+                                </div>
+                                <div
+                                  className={clsx(
+                                    'text-xs truncate',
+                                    item.isHistorical ? 'text-warning' : 'text-text-muted',
+                                  )}
+                                >
+                                  {item.description}
+                                </div>
+                              </div>
                             </div>
-                          )
-                        )}
-                      </div>
-                      {isSelected && !isIncompatible && (
-                        <Check className="w-4 h-4 text-accent flex-shrink-0 ml-2" />
+                            {item.selected && !item.isHistorical && (
+                              <Check className="w-4 h-4 text-accent flex-shrink-0 ml-2" />
+                            )}
+                          </button>
+                        ))
+                      ) : (
+                        <div className="px-3 py-3 text-center text-text-muted text-xs">
+                          {isSearching
+                            ? t('common.loading')
+                            : controllerType === 'Win32' || controllerType === 'Gamepad'
+                              ? t('controller.noWindows')
+                              : t('controller.noDevices')}
+                        </div>
                       )}
-                    </button>
-                  );
-                })}
+                    </div>
+                  )}
+                </div>
+
+                {/* 刷新按钮 - 与加载资源按钮保持一致的尺寸 */}
+                <button
+                  onClick={handleSearch}
+                  disabled={isSearching || isConnecting}
+                  className={clsx(
+                    'flex items-center justify-center px-3 py-1.5 rounded-md border transition-colors',
+                    'bg-bg-tertiary border-border',
+                    isSearching || isConnecting
+                      ? 'opacity-50 cursor-not-allowed'
+                      : 'hover:bg-bg-hover hover:border-accent',
+                  )}
+                  title={t('controller.refresh')}
+                >
+                  {isSearching ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin text-text-secondary" />
+                  ) : (
+                    <RefreshCw className="w-3.5 h-3.5 text-text-secondary" />
+                  )}
+                </button>
               </div>
             )}
-          </div>
 
-          {/* 资源错误提示 */}
-          {resourceError && (
-            <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-md bg-error/10 text-error text-xs">
-              <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
-              <span>{resourceError}</span>
+            {/* 设备错误提示 */}
+            {deviceError && (
+              <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-md bg-error/10 text-error text-xs">
+                <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
+                <span>{deviceError}</span>
+              </div>
+            )}
+
+            {/* 分隔线 */}
+            <div className="border-t border-border" />
+
+            {/* 资源选择 - 选中即自动加载 */}
+            <div className="relative">
+              {/* 资源下拉框 */}
+              {(() => {
+                const selectedResourceCompatibility = currentResource
+                  ? getResourceCompatibility(currentResource)
+                  : { isIncompatible: false, reason: '' };
+                const isSelectedIncompatible = selectedResourceCompatibility.isIncompatible;
+
+                return (
+                  <button
+                    ref={resourceDropdownRef}
+                    onClick={() => {
+                      if (isLoadingResource || activeInstance?.isRunning) return;
+                      if (!showResourceDropdown) {
+                        setResourceDropdownPos(calcDropdownPositionUp(resourceDropdownRef));
+                      }
+                      setShowResourceDropdown(!showResourceDropdown);
+                    }}
+                    disabled={isLoadingResource || activeInstance?.isRunning || false}
+                    className={clsx(
+                      'w-full flex items-center justify-between px-2.5 py-1.5 rounded-md border transition-colors text-sm',
+                      'bg-bg-tertiary',
+                      isSelectedIncompatible ? 'border-warning/50' : 'border-border',
+                      isLoadingResource || activeInstance?.isRunning
+                        ? 'opacity-60 cursor-not-allowed'
+                        : 'hover:border-accent cursor-pointer',
+                    )}
+                    title={
+                      isSelectedIncompatible ? selectedResourceCompatibility.reason : undefined
+                    }
+                  >
+                    <div className="flex items-center gap-2 min-w-0 flex-1">
+                      {isSelectedIncompatible && (
+                        <AlertCircle className="w-3.5 h-3.5 text-warning flex-shrink-0" />
+                      )}
+                      <span
+                        className={clsx(
+                          'truncate',
+                          currentResource
+                            ? isSelectedIncompatible
+                              ? 'text-text-muted'
+                              : 'text-text-primary'
+                            : 'text-text-muted',
+                        )}
+                      >
+                        {currentResource
+                          ? getResourceDisplayName(currentResource)
+                          : t('resource.selectResource')}
+                      </span>
+                      {isLoadingResource && (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin text-accent flex-shrink-0" />
+                      )}
+                      {!isLoadingResource && isResourceLoaded && !isSelectedIncompatible && (
+                        <CheckCircle className="w-3.5 h-3.5 text-success flex-shrink-0" />
+                      )}
+                    </div>
+                    <ChevronDown
+                      className={clsx(
+                        'w-4 h-4 text-text-muted transition-transform flex-shrink-0',
+                        showResourceDropdown && 'rotate-180',
+                      )}
+                    />
+                  </button>
+                );
+              })()}
+
+              {/* 资源下拉菜单 - 使用 fixed 定位向上展开 */}
+              {showResourceDropdown && resourceDropdownPos && (
+                <div
+                  ref={resourceMenuRef}
+                  className="fixed z-[100] bg-bg-secondary border border-border rounded-lg shadow-lg max-h-48 overflow-y-auto"
+                  style={{
+                    bottom: window.innerHeight - resourceDropdownPos.top + 4,
+                    left: resourceDropdownPos.left,
+                    width: resourceDropdownPos.width,
+                  }}
+                >
+                  {allResources.map((resource) => {
+                    const { isIncompatible, reason } = getResourceCompatibility(resource);
+                    const isSelected = currentResourceName === resource.name;
+
+                    return (
+                      <button
+                        key={resource.name}
+                        onClick={() => !isIncompatible && handleResourceSelect(resource)}
+                        disabled={isIncompatible}
+                        className={clsx(
+                          'w-full flex items-center justify-between px-2.5 py-1.5 text-left transition-colors',
+                          isIncompatible
+                            ? 'opacity-60 cursor-not-allowed'
+                            : 'hover:bg-bg-hover cursor-pointer',
+                          isSelected && !isIncompatible && 'bg-accent/10',
+                        )}
+                        title={isIncompatible ? reason : undefined}
+                      >
+                        <div className="min-w-0 flex-1">
+                          <div
+                            className={clsx(
+                              'text-sm truncate flex items-center gap-1.5',
+                              isIncompatible ? 'text-text-muted' : 'text-text-primary',
+                            )}
+                          >
+                            {isIncompatible && (
+                              <AlertCircle className="w-3.5 h-3.5 text-warning flex-shrink-0" />
+                            )}
+                            <span className="truncate">{getResourceDisplayName(resource)}</span>
+                          </div>
+                          {/* 描述或不兼容提示 */}
+                          {isIncompatible ? (
+                            <div className="text-xs text-warning truncate">{reason}</div>
+                          ) : (
+                            resource.description && (
+                              <div className="text-xs text-text-muted truncate">
+                                {resolveI18nText(resource.description, translations)}
+                              </div>
+                            )
+                          )}
+                        </div>
+                        {isSelected && !isIncompatible && (
+                          <Check className="w-4 h-4 text-accent flex-shrink-0 ml-2" />
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
             </div>
-          )}
+
+            {/* 资源错误提示 */}
+            {resourceError && (
+              <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-md bg-error/10 text-error text-xs">
+                <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
+                <span>{resourceError}</span>
+              </div>
+            )}
           </div>
         </div>
       </div>
