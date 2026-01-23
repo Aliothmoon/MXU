@@ -1,6 +1,7 @@
 /**
  * Pipeline Override 生成工具
  * 用于生成任务的 pipeline_override JSON
+ * MaaFramework 支持数组格式的 pipeline_override，会按顺序依次合并
  */
 
 import type {
@@ -12,32 +13,12 @@ import type {
 import { loggers } from './logger';
 
 /**
- * 深度合并对象（源对象的属性会覆盖目标对象的同名属性）
+ * 递归处理选项的 pipeline_override，收集到数组中
  */
-export const deepMerge = (target: Record<string, unknown>, source: Record<string, unknown>) => {
-  for (const key of Object.keys(source)) {
-    if (
-      source[key] &&
-      typeof source[key] === 'object' &&
-      !Array.isArray(source[key]) &&
-      target[key] &&
-      typeof target[key] === 'object' &&
-      !Array.isArray(target[key])
-    ) {
-      deepMerge(target[key] as Record<string, unknown>, source[key] as Record<string, unknown>);
-    } else {
-      target[key] = source[key];
-    }
-  }
-};
-
-/**
- * 递归处理选项的 pipeline_override
- */
-export const processOptionOverride = (
+const collectOptionOverrides = (
   optionKey: string,
   optionValues: Record<string, OptionValue>,
-  overrides: Record<string, unknown>,
+  overrides: Record<string, unknown>[],
   allOptions: Record<string, OptionDefinition>,
 ) => {
   const optionDef = allOptions[optionKey];
@@ -59,12 +40,12 @@ export const processOptionOverride = (
     const caseDef = optionDef.cases?.find((c) => c.name === caseName);
 
     if (caseDef?.pipeline_override) {
-      deepMerge(overrides, caseDef.pipeline_override);
+      overrides.push(caseDef.pipeline_override as Record<string, unknown>);
     }
 
     if (caseDef?.option) {
       for (const nestedKey of caseDef.option) {
-        processOptionOverride(nestedKey, optionValues, overrides, allOptions);
+        collectOptionOverrides(nestedKey, optionValues, overrides, allOptions);
       }
     }
   } else if (
@@ -96,7 +77,7 @@ export const processOptionOverride = (
     }
 
     try {
-      deepMerge(overrides, JSON.parse(overrideStr));
+      overrides.push(JSON.parse(overrideStr));
     } catch (e) {
       loggers.task.warn('解析选项覆盖失败:', e);
     }
@@ -105,31 +86,27 @@ export const processOptionOverride = (
 
 /**
  * 为单个任务生成 pipeline override JSON
+ * 返回数组格式的 JSON 字符串，MaaFramework 会按顺序依次合并
  */
 export const generateTaskPipelineOverride = (
   selectedTask: SelectedTask,
   projectInterface: ProjectInterface | null,
 ): string => {
-  if (!projectInterface) return '{}';
+  if (!projectInterface) return '[]';
 
-  const overrides: Record<string, unknown> = {};
+  const overrides: Record<string, unknown>[] = [];
   const taskDef = projectInterface.task.find((t) => t.name === selectedTask.taskName);
-  if (!taskDef) return '{}';
+  if (!taskDef) return '[]';
 
   // 添加任务自身的 pipeline_override
   if (taskDef.pipeline_override) {
-    deepMerge(overrides, taskDef.pipeline_override as Record<string, unknown>);
+    overrides.push(taskDef.pipeline_override as Record<string, unknown>);
   }
 
   // 处理顶层选项及其嵌套选项
   if (taskDef.option && projectInterface.option) {
     for (const optionKey of taskDef.option) {
-      processOptionOverride(
-        optionKey,
-        selectedTask.optionValues,
-        overrides,
-        projectInterface.option,
-      );
+      collectOptionOverrides(optionKey, selectedTask.optionValues, overrides, projectInterface.option);
     }
   }
 
