@@ -833,15 +833,29 @@ fn strip_ansi_escapes(s: &str) -> String {
 
 /// 发送 Agent 输出事件到前端
 pub fn emit_agent_output(instance_id: &str, stream: &str, line: &str) {
-    if let Ok(guard) = APP_HANDLE.lock() {
-        if let Some(handle) = guard.as_ref() {
-            let event = AgentOutputEvent {
-                instance_id: instance_id.to_string(),
-                stream: stream.to_string(),
-                line: strip_ansi_escapes(line),
-            };
-            let _ = handle.emit("maa-agent-output", event);
+    // 使用 catch_unwind 捕获潜在的 panic
+    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        match APP_HANDLE.lock() {
+            Ok(guard) => {
+                if let Some(handle) = guard.as_ref() {
+                    let event = AgentOutputEvent {
+                        instance_id: instance_id.to_string(),
+                        stream: stream.to_string(),
+                        line: strip_ansi_escapes(line),
+                    };
+                    if let Err(e) = handle.emit("maa-agent-output", event) {
+                        log::error!("[agent_output] Failed to emit event: {}", e);
+                    }
+                }
+            }
+            Err(e) => {
+                log::error!("[agent_output] Failed to lock APP_HANDLE: {}", e);
+            }
         }
+    }));
+
+    if let Err(e) = result {
+        log::error!("[agent_output] Panic caught in emit_agent_output: {:?}", e);
     }
 }
 
@@ -853,18 +867,48 @@ extern "C" fn maa_event_callback(
     details_json: *const c_char,
     _trans_arg: *mut c_void,
 ) {
-    let message_str = unsafe { from_cstr(message) };
-    let details_str = unsafe { from_cstr(details_json) };
+    // 使用 catch_unwind 捕获潜在的 panic，避免回调中的 panic 导致整个程序崩溃
+    let result = std::panic::catch_unwind(|| {
+        // 安全地读取 C 字符串，添加额外的日志
+        let message_str = if message.is_null() {
+            log::warn!("[callback] Received null message pointer");
+            String::new()
+        } else {
+            unsafe { from_cstr(message) }
+        };
 
-    // 发送事件到前端
-    if let Ok(guard) = APP_HANDLE.lock() {
-        if let Some(handle) = guard.as_ref() {
-            let event = MaaCallbackEvent {
-                message: message_str,
-                details: details_str,
-            };
-            let _ = handle.emit("maa-callback", event);
+        let details_str = if details_json.is_null() {
+            log::warn!("[callback] Received null details_json pointer");
+            String::new()
+        } else {
+            unsafe { from_cstr(details_json) }
+        };
+
+        log::debug!("[callback] Received: message={}, details={}", message_str, details_str);
+
+        // 发送事件到前端
+        match APP_HANDLE.lock() {
+            Ok(guard) => {
+                if let Some(handle) = guard.as_ref() {
+                    let event = MaaCallbackEvent {
+                        message: message_str,
+                        details: details_str,
+                    };
+                    if let Err(e) = handle.emit("maa-callback", event) {
+                        log::error!("[callback] Failed to emit event: {}", e);
+                    }
+                } else {
+                    log::warn!("[callback] APP_HANDLE is None, cannot emit event");
+                }
+            }
+            Err(e) => {
+                log::error!("[callback] Failed to lock APP_HANDLE: {}", e);
+            }
         }
+    });
+
+    if let Err(e) = result {
+        log::error!("[callback] Panic caught in maa_event_callback: {:?}", e);
     }
 }
 
