@@ -62,8 +62,8 @@ export interface ThemeConfig {
 /** 支持的主题模式 */
 export type ThemeMode = 'light' | 'dark';
 
-/** 支持的强调色名称 */
-export type AccentColor =
+/** 预设强调色名称（内置） */
+export type PresetAccentColor =
   | 'emerald' // 宝石绿
   | 'lava' // 熔岩橙
   | 'titanium' // 钛金属
@@ -74,9 +74,39 @@ export type AccentColor =
   | 'cambrian' // 寒武岩灰
   | 'pearl'; // 珍珠白
 
+/** 支持的强调色名称
+ *
+ * - 预设强调色使用字面量联合类型（便于补全和类型检查）
+ * - 通过交叉类型 (string & {}) 支持运行时注册的自定义强调色名称
+ */
+export type AccentColor = PresetAccentColor | (string & {}); // 允许运行时扩展的自定义名称
+
 /** 强调色信息（用于 UI 展示） */
 export interface AccentInfo {
   name: AccentColor;
   label: string;
   color: string;
+  /** 是否为自定义强调色（用于在 UI 中区分） */
+  isCustom?: boolean;
+}
+
+/** 自定义强调色配置（保存在配置文件中） */
+export interface CustomAccent {
+  id: string;
+  /** 自定义强调色的名称，用于选择和应用 */
+  name: AccentColor;
+  /** 不同语言下的显示名称 */
+  label: {
+    'zh-CN': string;
+    'en-US': string;
+    'ja-JP'?: string;
+    'ko-KR'?: string;
+  };
+  /** 颜色配置 */
+  colors: {
+    default: string;
+    hover: string;
+    light: string;
+    lightDark: string;
+  };
 }

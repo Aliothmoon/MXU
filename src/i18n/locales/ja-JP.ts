@@ -49,6 +49,20 @@ export default {
     showOptionPreview: 'オプションプレビューを表示',
     showOptionPreviewHint: 'タスクリストにオプションのクイックプレビューを表示します',
     openLogDir: 'ログフォルダを開く',
+    // カスタムアクセント
+    customAccents: 'カスタムアクセント',
+    addCustomAccent: '追加',
+    editCustomAccent: 'カスタムアクセントを編集',
+    deleteCustomAccent: '削除',
+    noCustomAccents: 'カスタムアクセントはまだありません',
+    customAccentNameRequired: '名前を入力してください',
+    deleteCustomAccentConfirm: 'このカスタムアクセントを削除してもよろしいですか？',
+    accentName: '名前',
+    accentNamePlaceholder: '例：エメラルドグリーン',
+    accentMainColor: 'メインカラー',
+    accentHoverColor: 'ホバーカラー',
+    accentLightColor: 'ライト背景',
+    accentLightDarkColor: 'ダーク背景',
   },
 
   // タスクリスト
