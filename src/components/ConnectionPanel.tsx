@@ -1172,7 +1172,7 @@ export function ConnectionPanel() {
                         // 保留资源加载状态（资源在 Rust 后端独立存储）
                         await maaService.destroyInstance(instanceId).catch(() => {});
                         await maaService.createInstance(instanceId).catch(() => {});
-                        
+
                         setSelectedController(instanceId, controller.name);
                         setIsConnected(false);
                         setInstanceConnectionStatus(instanceId, 'Disconnected');
