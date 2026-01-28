@@ -1413,11 +1413,20 @@ pub async fn maa_start_tasks(
             let lib = guard.as_ref().ok_or("MaaFramework not initialized")?;
 
             // 根据 tcp_compat_mode 选择创建方式
+            // TCP 模式用于不支持 AF_UNIX 的旧版 Windows（Build 17063 之前）
             let agent_client = if tcp_compat_mode {
-                debug!("[agent] Using TCP compat mode, calling maa_agent_client_create_tcp...");
-                let client = unsafe { (lib.maa_agent_client_create_tcp)(0) }; // port=0 自动选择端口
-                debug!("[agent] maa_agent_client_create_tcp returned: {:?}", client);
-                client
+                // 检查 TCP 模式是否可用（旧版本 MaaFramework 可能不支持）
+                if let Some(create_tcp_fn) = lib.maa_agent_client_create_tcp {
+                    debug!("[agent] Using TCP compat mode, calling maa_agent_client_create_tcp...");
+                    let client = unsafe { create_tcp_fn(0) }; // port=0 自动选择端口
+                    debug!("[agent] maa_agent_client_create_tcp returned: {:?}", client);
+                    client
+                } else {
+                    warn!("[agent] TCP compat mode requested but MaaAgentClientCreateTcp not available, falling back to V2");
+                    let client = unsafe { (lib.maa_agent_client_create_v2)(std::ptr::null()) };
+                    debug!("[agent] maa_agent_client_create_v2 (fallback) returned: {:?}", client);
+                    client
+                }
             } else {
                 debug!("[agent] Calling maa_agent_client_create_v2...");
                 let client = unsafe { (lib.maa_agent_client_create_v2)(std::ptr::null()) };
@@ -3061,4 +3070,37 @@ pub fn check_vcredist_missing() -> bool {
 #[tauri::command]
 pub fn get_arch() -> String {
     std::env::consts::ARCH.to_string()
+}
+
+/// 系统信息结构
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SystemInfo {
+    pub os: String,
+    pub os_version: String,
+    pub arch: String,
+    pub tauri_version: String,
+}
+
+/// 获取系统信息
+#[tauri::command]
+pub fn get_system_info() -> SystemInfo {
+    // 获取操作系统名称
+    let os = std::env::consts::OS.to_string();
+    
+    // 获取操作系统版本
+    let info = os_info::get();
+    let os_version = format!("{} {}", info.os_type(), info.version());
+    
+    // 获取系统架构
+    let arch = std::env::consts::ARCH.to_string();
+    
+    // 获取 Tauri 版本（从编译时环境变量）
+    let tauri_version = env!("CARGO_PKG_VERSION").to_string();
+    
+    SystemInfo {
+        os,
+        os_version,
+        arch,
+        tauri_version,
+    }
 }

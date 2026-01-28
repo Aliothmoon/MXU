@@ -329,7 +329,8 @@ pub struct MaaLibrary {
 
     // AgentClient
     pub maa_agent_client_create_v2: FnMaaAgentClientCreateV2,
-    pub maa_agent_client_create_tcp: FnMaaAgentClientCreateTcp,
+    /// 可选函数：旧版本 MaaFramework 可能不支持 TCP 模式
+    pub maa_agent_client_create_tcp: Option<FnMaaAgentClientCreateTcp>,
     pub maa_agent_client_destroy: FnMaaAgentClientDestroy,
     pub maa_agent_client_identifier: FnMaaAgentClientIdentifier,
     pub maa_agent_client_bind_resource: FnMaaAgentClientBindResource,
@@ -586,7 +587,7 @@ impl MaaLibrary {
 
                 // AgentClient
                 maa_agent_client_create_v2: load_fn!(agent_client_lib, "MaaAgentClientCreateV2"),
-                maa_agent_client_create_tcp: load_fn!(agent_client_lib, "MaaAgentClientCreateTcp"),
+                maa_agent_client_create_tcp: load_fn_optional!(agent_client_lib, "MaaAgentClientCreateTcp"),
                 maa_agent_client_destroy: load_fn!(agent_client_lib, "MaaAgentClientDestroy"),
                 maa_agent_client_identifier: load_fn!(agent_client_lib, "MaaAgentClientIdentifier"),
                 maa_agent_client_bind_resource: load_fn!(
