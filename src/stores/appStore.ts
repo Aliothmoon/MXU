@@ -489,7 +489,7 @@ export const useAppStore = create<AppState>()(
     theme: 'light',
     accentColor: 'emerald',
     language: 'system',
-    confirmBeforeDelete: true,
+    confirmBeforeDelete: false,
     maxLogsPerInstance: 2000,
     customAccents: [],
     setTheme: (theme) => {
@@ -1188,7 +1188,7 @@ export const useAppStore = create<AppState>()(
         theme: config.settings.theme,
         accentColor,
         language: config.settings.language,
-        confirmBeforeDelete: config.settings.confirmBeforeDelete ?? true,
+        confirmBeforeDelete: config.settings.confirmBeforeDelete ?? false,
         maxLogsPerInstance: config.settings.maxLogsPerInstance ?? 2000,
         customAccents,
         selectedController,

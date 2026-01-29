@@ -162,7 +162,7 @@ export const defaultConfig: MxuConfig = {
     theme: 'system',
     accentColor: defaultAccentColor,
     language: 'system',
-    confirmBeforeDelete: true,
+    confirmBeforeDelete: false,
     maxLogsPerInstance: 2000,
     windowSize: defaultWindowSize,
     mirrorChyan: defaultMirrorChyanSettings,
